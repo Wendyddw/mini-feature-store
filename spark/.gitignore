@@ -25,3 +25,5 @@ Thumbs.db
 *.jar
 !lib/*.jar
 
+.metals
+.vscode
