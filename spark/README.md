@@ -26,12 +26,14 @@ spark/
 │   │   │       ├── SparkPlatform.scala        # Production Spark session manager
 │   │   │       ├── PlatformProvider.scala    # Factory for platform selection
 │   │   │       ├── Fetchers.scala             # Type-safe reading utilities
-│   │   │       └── Writers.scala              # Production-grade writing utilities
+│   │   │       ├── Writers.scala              # Trait for writing operations
+│   │   │       └── ProdWriter.scala           # Production writer implementation
 │   │   └── resources/                         # Configurations (log4j2.xml)
 │   └── test/
 │       ├── scala/
 │       │   └── com/example/test/
-│       │       └── SparkTestBase.scala        # Base trait for parallel test execution
+│       │       ├── SparkTestBase.scala        # Base trait for parallel test execution
+│       │       └── TestWriter.scala          # In-memory writer for testing
 │       └── resources/                         # Test resources
 ├── .scalafmt.conf              # Scalafmt configuration
 ├── .scalafix.conf              # Scalafix configuration
@@ -69,9 +71,10 @@ make clean      # Clean build artifacts
 ```scala
 import platform.PlatformProvider
 
-// Create a local Spark session
+// Create a local Spark platform (includes both Spark session and writer)
 val platform = PlatformProvider.createLocal("my-app")
 val spark = platform.spark
+val writer = platform.writer
 
 // Use spark for your operations
 // ...
@@ -94,32 +97,76 @@ val df = Fetchers.readCsv(spark, "path/to/data.csv", header = true)
 ### Writing Data
 
 ```scala
-import platform.Writers
+import platform.PlatformProvider
+
+// Create a platform (includes writer)
+val platform = PlatformProvider.createLocal("my-app")
+val writer = platform.writer
 
 // Write Parquet
-Writers.writeParquet(df, "path/to/output", mode = "overwrite")
+writer.writeParquet(df, "path/to/output", mode = "overwrite")
 
 // Write partitioned Parquet
-Writers.writeParquet(df, "path/to/output", partitionBy = Seq("date", "region"))
+writer.writeParquet(df, "path/to/output", partitionBy = Seq("date", "region"))
+
+// Write to Iceberg table
+writer.insertOverwriteIcebergTable(df, "db.feature_table", partitionBy = Seq("date"))
+
+// Write JSON
+writer.writeJson(df, "path/to/output.json")
+
+// Write CSV
+writer.writeCsv(df, "path/to/output.csv", header = true, delimiter = ",")
+
+// Or use custom writer
+import platform.ProdWriter
+val customWriter = new ProdWriter()
+val platformWithCustomWriter = PlatformProvider.createLocal("my-app", writer = customWriter)
 ```
 
 ### Testing
 
-Extend `SparkTestBase` in your test classes:
+Extend `SparkTestBase` in your test classes. This provides both a Spark session and an in-memory `TestWriter`:
 
 ```scala
 import com.example.test.SparkTestBase
 import org.scalatest.funsuite.AnyFunSuite
+import org.scalatest.matchers.should.Matchers
 
-class MyTest extends AnyFunSuite with SparkTestBase {
-  test("my test") {
-    // Use spark session here
+class MyTest extends AnyFunSuite with SparkTestBase with Matchers {
+  test("my test with in-memory writer") {
     import spark.implicits._
     val df = Seq(1, 2, 3).toDF("value")
-    // ...
+
+    // Write to in-memory storage (no actual I/O)
+    // testWriter is automatically available from SparkTestBase
+    testWriter.writeParquet(df, "test/path")
+
+    // Retrieve the stored DataFrame
+    val stored = testWriter.getStoredData("test/path")
+    stored should be(defined)
+    stored.get.count() should be(3)
+
+    // Check all stored keys
+    testWriter.getAllStoredKeys should contain("test/path")
+
+    // You can also use platform.writer (same instance)
+    platform.writer.writeJson(df, "test/json")
+  }
+
+  test("test Iceberg table writes") {
+    import spark.implicits._
+    val df = Seq(("user1", 0.5), ("user2", 0.8)).toDF("user_id", "score")
+
+    testWriter.insertOverwriteIcebergTable(df, "test_db.features")
+
+    val stored = testWriter.getStoredData("test_db.features")
+    stored.get.count() should be(2)
   }
 }
 ```
+
+The `TestWriter` stores all DataFrames in memory, making tests fast and isolated without requiring actual storage systems.
 
 ## Key Principles
 
