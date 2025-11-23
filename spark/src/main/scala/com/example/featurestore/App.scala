@@ -5,6 +5,12 @@ import com.example.featurestore.pipelines.{
   OnlineSyncPipeline,
   PointInTimeJoinPipeline
 }
+import com.example.featurestore.types.{
+  BackfillPipelineConfig,
+  OnlineSyncPipelineConfig,
+  PointInTimeJoinPipelineConfig,
+  RedisConfig
+}
 import platform.PlatformProvider
 
 /** Main application entry point for feature store pipelines.
@@ -52,34 +58,37 @@ object App {
       args(0) match {
         case "backfill" =>
           val options = parseArgs(args.tail)
-          val pipeline = new BackfillPipeline(platform)
-          pipeline.run(
+          val config = BackfillPipelineConfig(
             eventsRawPath = options("events-raw-path"),
             outputTable = options("output-table"),
             startDate = options("start-date"),
             endDate = options("end-date")
           )
+          val pipeline = new BackfillPipeline(platform, config)
+          pipeline.execute()
 
         case "point-in-time-join" =>
           val options = parseArgs(args.tail)
-          val pipeline = new PointInTimeJoinPipeline(platform)
-          pipeline.run(
+          val config = PointInTimeJoinPipelineConfig(
             labelsPath = options("labels-path"),
             featuresTable = options("features-table"),
             outputPath = options("output-path")
           )
+          val pipeline = new PointInTimeJoinPipeline(platform, config)
+          pipeline.execute()
 
         case "online-sync" =>
           val options = parseArgs(args.tail)
-          val pipeline = new OnlineSyncPipeline(
-            platform,
-            options("redis-host"),
-            options("redis-port").toInt
-          )
-          pipeline.sync(
+          val config = OnlineSyncPipelineConfig(
             featuresTable = options("features-table"),
+            redisConfig = RedisConfig(
+              host = options("redis-host"),
+              port = options("redis-port").toInt
+            ),
             hoursBack = options.get("hours-back").map(_.toInt).getOrElse(24)
           )
+          val pipeline = new OnlineSyncPipeline(platform, config)
+          pipeline.execute()
 
         case _ =>
           println(s"Unknown pipeline: ${args(0)}")

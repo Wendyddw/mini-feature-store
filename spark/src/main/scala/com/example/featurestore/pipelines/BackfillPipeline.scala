@@ -1,8 +1,14 @@
 package com.example.featurestore.pipelines
 
 import com.example.featurestore.domain.Schemas
+import com.example.featurestore.types.FeaturesDaily
+import com.example.featurestore.types.{
+  BackfillPipelineConfig,
+  PipelineResult,
+  PlatformPipeline
+}
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.apache.spark.sql.{Dataset, SparkSession}
 import platform.{Fetchers, SparkPlatformTrait}
 
 /** Backfill pipeline: transforms events_raw → features_daily.
@@ -15,43 +21,63 @@ import platform.{Fetchers, SparkPlatformTrait}
   * Common use patterns:
   * {{{
   *   val platform = PlatformProvider.createLocal("backfill-job")
-  *   val pipeline = new BackfillPipeline(platform)
-  *   pipeline.run(
+  *   val config = BackfillPipelineConfig(
   *     eventsRawPath = "s3://bucket/events_raw",
   *     outputTable = "feature_store.features_daily",
   *     startDate = "2024-01-01",
   *     endDate = "2024-12-31"
   *   )
+  *   val pipeline = new BackfillPipeline(platform, config)
+  *   pipeline.execute()
   *   platform.stop()
   * }}}
   */
-class BackfillPipeline(platform: SparkPlatformTrait) {
+class BackfillPipeline(
+    override val platform: SparkPlatformTrait,
+    config: BackfillPipelineConfig
+) extends PlatformPipeline[FeaturesDaily] {
 
   private val spark: SparkSession = platform.spark
 
+  /** Executes the backfill pipeline.
+    *
+    * @return None (pipeline writes to Iceberg table, no Dataset returned)
+    */
+  override def execute(): Option[Dataset[FeaturesDaily]] = {
+    // Validate configuration
+    validateConfig()
+
+    val features = run()
+    // Write to Iceberg table
+    platform.writer.insertOverwriteIcebergTable(
+      features.toDF(),
+      config.outputTable,
+      partitionBy = config.partitionBy
+    )
+    None // Backfill doesn't return data, it writes to table
+  }
+
   /** Runs the backfill pipeline.
     *
-    * @param eventsRawPath Path to events_raw table/data
-    * @param outputTable Output Iceberg table name (e.g., "db.features_daily")
-    * @param startDate Start date for backfill (YYYY-MM-DD)
-    * @param endDate End date for backfill (YYYY-MM-DD)
+    * Internal implementation method.
+    *
+    * @return Dataset[FeaturesDaily] with computed features
     */
-  def run(
-      eventsRawPath: String,
-      outputTable: String,
-      startDate: String,
-      endDate: String
-  ): Unit = {
+  private def run(): Dataset[FeaturesDaily] = {
     import spark.implicits._
 
     // Read events_raw
-    val eventsRaw = Fetchers.readParquet(spark, eventsRawPath, Some(Schemas.eventsRawSchema))
+    val eventsRaw = Fetchers.readParquet(
+      spark,
+      config.eventsRawPath,
+      Some(Schemas.eventsRawSchema)
+    )
 
     // Generate date range for backfill using sequence function
     val dateRange = spark.sql(s"""
-      SELECT date_add(to_date('$startDate'), pos) as day
+      SELECT date_add(to_date('${config.startDate}'), pos) as day
       FROM (
-        SELECT posexplode(split(space(datediff(to_date('$endDate'), to_date('$startDate'))), ' ')) as (pos, x)
+        SELECT posexplode(split(space(datediff(to_date('${config.endDate}'), to_date('${config.startDate}'))), ' ')) as (pos, x)
       )
     """)
 
@@ -107,12 +133,42 @@ class BackfillPipeline(platform: SparkPlatformTrait) {
         col("last_event_days_ago"),
         col("event_type_counts").cast("string").as("event_type_counts")
       )
+      .as[FeaturesDaily]
 
-    // Write to Iceberg table
-    platform.writer.insertOverwriteIcebergTable(
-      features,
-      outputTable,
-      partitionBy = Seq("day")
+    features
+  }
+
+  /** Validates the pipeline configuration.
+    *
+    * @throws IllegalArgumentException if configuration is invalid
+    */
+  private def validateConfig(): Unit = {
+    require(config.eventsRawPath.nonEmpty, "eventsRawPath cannot be empty")
+    require(config.outputTable.nonEmpty, "outputTable cannot be empty")
+    require(config.startDate.nonEmpty, "startDate cannot be empty")
+    require(config.endDate.nonEmpty, "endDate cannot be empty")
+    require(
+      config.partitionBy.nonEmpty,
+      "partitionBy cannot be empty (at least one partition column required)"
+    )
+
+    // Validate date format (basic check)
+    try {
+      java.sql.Date.valueOf(config.startDate)
+      java.sql.Date.valueOf(config.endDate)
+    } catch {
+      case _: IllegalArgumentException =>
+        throw new IllegalArgumentException(
+          s"Invalid date format. Expected YYYY-MM-DD, got startDate=${config.startDate}, endDate=${config.endDate}"
+        )
+    }
+
+    // Validate date range
+    val start = java.sql.Date.valueOf(config.startDate)
+    val end = java.sql.Date.valueOf(config.endDate)
+    require(
+      !start.after(end),
+      s"startDate (${config.startDate}) must be before or equal to endDate (${config.endDate})"
     )
   }
 }

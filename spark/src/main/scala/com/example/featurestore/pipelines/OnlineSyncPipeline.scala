@@ -1,7 +1,13 @@
 package com.example.featurestore.pipelines
 
+import com.example.featurestore.types.FeaturesDaily
+import com.example.featurestore.types.{
+  OnlineSyncPipelineConfig,
+  PipelineResult,
+  PlatformPipeline
+}
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.apache.spark.sql.{Dataset, SparkSession}
 import platform.SparkPlatformTrait
 import redis.clients.jedis.Jedis
 
@@ -13,31 +19,47 @@ import redis.clients.jedis.Jedis
   * Common use patterns:
   * {{{
   *   val platform = PlatformProvider.createLocal("online-sync")
-  *   val pipeline = new OnlineSyncPipeline(platform, "localhost", 6379)
-  *   pipeline.sync(
+  *   val config = OnlineSyncPipelineConfig(
   *     featuresTable = "feature_store.features_daily",
+  *     redisConfig = RedisConfig(host = "localhost", port = 6379),
   *     hoursBack = 24
   *   )
+  *   val pipeline = new OnlineSyncPipeline(platform, config)
+  *   pipeline.execute()
   *   platform.stop()
   * }}}
   */
-class OnlineSyncPipeline(platform: SparkPlatformTrait, redisHost: String, redisPort: Int) {
+class OnlineSyncPipeline(
+    override val platform: SparkPlatformTrait,
+    config: OnlineSyncPipelineConfig
+) extends PlatformPipeline[FeaturesDaily] {
 
   private val spark: SparkSession = platform.spark
 
+  /** Executes the online sync pipeline.
+    *
+    * @return None (pipeline writes to Redis, no Dataset returned)
+    */
+  override def execute(): Option[Dataset[FeaturesDaily]] = {
+    // Validate configuration
+    validateConfig()
+
+    sync()
+    None
+  }
+
   /** Syncs recent features to Redis.
     *
-    * @param featuresTable Iceberg table name for features_daily
-    * @param hoursBack Number of hours back to sync (default: 24)
+    * Internal implementation method.
     */
-  def sync(featuresTable: String, hoursBack: Int = 24): Unit = {
+  private def sync(): Unit = {
     import spark.implicits._
 
     // Read recent features from Iceberg
-    val cutoffDate = date_sub(current_date(), 1) // Last 24 hours
+    val cutoffDate = date_sub(current_date(), config.hoursBack / 24)
     val recentFeatures = spark.read
       .format("iceberg")
-      .table(featuresTable)
+      .table(config.featuresTable)
       .filter(col("day") >= cutoffDate)
       .orderBy(col("day").desc)
 
@@ -55,7 +77,7 @@ class OnlineSyncPipeline(platform: SparkPlatformTrait, redisHost: String, redisP
       .drop("rank")
 
     // Convert to JSON and write to Redis
-    val redis = new Jedis(redisHost, redisPort)
+    val redis = new Jedis(config.redisConfig.host, config.redisConfig.port)
     try {
       latestFeatures.collect().foreach { row =>
         val userId = row.getAs[String]("user_id")
@@ -74,6 +96,20 @@ class OnlineSyncPipeline(platform: SparkPlatformTrait, redisHost: String, redisP
     } finally {
       redis.close()
     }
+  }
+
+  /** Validates the pipeline configuration.
+    *
+    * @throws IllegalArgumentException if configuration is invalid
+    */
+  private def validateConfig(): Unit = {
+    require(config.featuresTable.nonEmpty, "featuresTable cannot be empty")
+    require(config.redisConfig.host.nonEmpty, "Redis host cannot be empty")
+    require(
+      config.redisConfig.port > 0 && config.redisConfig.port <= 65535,
+      s"Redis port must be between 1 and 65535, got ${config.redisConfig.port}"
+    )
+    require(config.hoursBack > 0, s"hoursBack must be positive, got ${config.hoursBack}")
   }
 }
 
