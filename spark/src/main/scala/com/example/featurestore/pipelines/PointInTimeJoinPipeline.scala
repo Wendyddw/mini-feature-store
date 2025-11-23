@@ -1,10 +1,10 @@
 package com.example.featurestore.pipelines
 
 import com.example.featurestore.domain.Schemas
-import com.example.featurestore.types.TrainingData
 import com.example.featurestore.types.{
   PointInTimeJoinPipelineConfig,
-  PlatformPipeline
+  Pipeline,
+  TrainingData
 }
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{Dataset, SparkSession}
@@ -33,9 +33,9 @@ import platform.{Fetchers, SparkPlatformTrait}
   * }}}
   */
 class PointInTimeJoinPipeline(
-    override val platform: SparkPlatformTrait,
+    platform: SparkPlatformTrait,
     config: PointInTimeJoinPipelineConfig
-) extends PlatformPipeline[TrainingData] {
+) extends Pipeline[TrainingData] {
 
   private val spark: SparkSession = platform.spark
 

@@ -1,10 +1,9 @@
 package com.example.featurestore.pipelines
 
-import com.example.featurestore.types.FeaturesDaily
 import com.example.featurestore.types.{
+  FeaturesDaily,
   OnlineSyncPipelineConfig,
-  PipelineResult,
-  PlatformPipeline
+  Pipeline
 }
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{Dataset, SparkSession}
@@ -30,9 +29,9 @@ import redis.clients.jedis.Jedis
   * }}}
   */
 class OnlineSyncPipeline(
-    override val platform: SparkPlatformTrait,
+    platform: SparkPlatformTrait,
     config: OnlineSyncPipelineConfig
-) extends PlatformPipeline[FeaturesDaily] {
+) extends Pipeline[FeaturesDaily] {
 
   private val spark: SparkSession = platform.spark
 
