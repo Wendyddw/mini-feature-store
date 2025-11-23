@@ -3,6 +3,8 @@ ThisBuild / version := "0.1.0-SNAPSHOT"
 ThisBuild / organization := "com.example"
 
 val sparkVersion = "3.5.0"
+val icebergVersion = "1.4.2"
+val redisVersion = "4.0.1"
 
 lazy val root = (project in file("."))
   .settings(
@@ -10,6 +12,8 @@ lazy val root = (project in file("."))
     libraryDependencies ++= Seq(
       "org.apache.spark" %% "spark-core" % sparkVersion % "provided",
       "org.apache.spark" %% "spark-sql" % sparkVersion % "provided",
+      "org.apache.iceberg" %% "iceberg-spark-runtime-3.5" % icebergVersion,
+      "redis.clients" % "jedis" % redisVersion,
       "org.scalatest" %% "scalatest" % "3.2.18" % Test,
       "org.apache.spark" %% "spark-core" % sparkVersion % Test classifier "tests",
       "org.apache.spark" %% "spark-sql" % sparkVersion % Test classifier "tests"
