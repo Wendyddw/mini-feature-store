@@ -3,8 +3,7 @@ package com.example.featurestore.pipelines
 import com.example.featurestore.domain.Schemas
 import com.example.featurestore.types.{
   BackfillPipelineConfig,
-  FeaturesDaily,
-  Pipeline
+  FeaturesDaily
 }
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{Dataset, SparkSession}
@@ -34,7 +33,7 @@ import platform.{Fetchers, SparkPlatformTrait}
 class BackfillPipeline(
     platform: SparkPlatformTrait,
     config: BackfillPipelineConfig
-) extends Pipeline[FeaturesDaily] {
+) {
 
   private val spark: SparkSession = platform.spark
 
@@ -42,7 +41,7 @@ class BackfillPipeline(
     *
     * @return None (pipeline writes to Iceberg table, no Dataset returned)
     */
-  override def execute(): Option[Dataset[FeaturesDaily]] = {
+  def execute(): Option[Dataset[FeaturesDaily]] = {
     // Validate configuration
     validateConfig()
 

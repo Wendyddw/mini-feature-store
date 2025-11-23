@@ -2,8 +2,7 @@ package com.example.featurestore.pipelines
 
 import com.example.featurestore.types.{
   FeaturesDaily,
-  OnlineSyncPipelineConfig,
-  Pipeline
+  OnlineSyncPipelineConfig
 }
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{Dataset, SparkSession}
@@ -31,7 +30,7 @@ import redis.clients.jedis.Jedis
 class OnlineSyncPipeline(
     platform: SparkPlatformTrait,
     config: OnlineSyncPipelineConfig
-) extends Pipeline[FeaturesDaily] {
+) {
 
   private val spark: SparkSession = platform.spark
 
@@ -39,7 +38,7 @@ class OnlineSyncPipeline(
     *
     * @return None (pipeline writes to Redis, no Dataset returned)
     */
-  override def execute(): Option[Dataset[FeaturesDaily]] = {
+  def execute(): Option[Dataset[FeaturesDaily]] = {
     // Validate configuration
     validateConfig()
 

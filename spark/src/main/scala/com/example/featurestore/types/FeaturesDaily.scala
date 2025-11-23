@@ -9,8 +9,6 @@ import java.sql.Date
   * - event_count_30d: count of events in last 30 days
   * - last_event_days_ago: days since last event
   * - event_type_counts: counts by event type (as JSON string)
-  *
-  * Implements Dated trait for type safety.
   */
 case class FeaturesDaily(
     user_id: String,
@@ -19,7 +17,5 @@ case class FeaturesDaily(
     event_count_30d: Option[Long],
     last_event_days_ago: Option[Int],
     event_type_counts: Option[String]
-) extends Dated {
-  override def date: Date = day
-}
+)
 

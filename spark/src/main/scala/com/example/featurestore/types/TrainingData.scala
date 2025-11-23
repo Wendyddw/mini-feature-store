@@ -6,8 +6,6 @@ import java.sql.{Date, Timestamp}
   *
   * This is the result of point-in-time join, ensuring no data leakage.
   * Combines label information with feature snapshots at the label timestamp.
-  *
-  * Implements Timestamped, Dated, and Trainable traits for comprehensive type safety.
   */
 case class TrainingData(
     user_id: String,
@@ -18,10 +16,5 @@ case class TrainingData(
     event_count_30d: Option[Long],
     last_event_days_ago: Option[Int],
     event_type_counts: Option[String]
-) extends Timestamped
-    with Dated
-    with Trainable {
-  override def timestamp: Timestamp = as_of_ts
-  override def date: Date = day
-}
+)
 
