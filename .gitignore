@@ -1,0 +1,42 @@
+# SBT
+target/
+project/target/
+project/project/
+.cache-main
+.cache-tests
+.history
+
+# IDE
+.idea/
+.vscode/
+*.iml
+.metals/
+.bloop/
+.bsp/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Assembly
+*.jar
+!lib/*.jar
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv
+
+# Data
+/tmp/events_raw/
+/tmp/labels/
+/tmp/training_data/
+
