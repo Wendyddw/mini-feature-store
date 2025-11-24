@@ -41,9 +41,6 @@ class OnlineSyncPipeline(
     * @return None (pipeline writes to Redis, no data returned)
     */
   def execute(): Option[FeaturesDaily] = {
-    // Validate configuration
-    validateConfig()
-
     sync()
     None
   }
@@ -100,18 +97,5 @@ class OnlineSyncPipeline(
     }
   }
 
-  /** Validates the pipeline configuration.
-    *
-    * @throws IllegalArgumentException if configuration is invalid
-    */
-  private def validateConfig(): Unit = {
-    require(config.featuresTable.nonEmpty, "featuresTable cannot be empty")
-    require(config.redisConfig.host.nonEmpty, "Redis host cannot be empty")
-    require(
-      config.redisConfig.port > 0 && config.redisConfig.port <= 65535,
-      s"Redis port must be between 1 and 65535, got ${config.redisConfig.port}"
-    )
-    require(config.hoursBack > 0, s"hoursBack must be positive, got ${config.hoursBack}")
-  }
 }
 

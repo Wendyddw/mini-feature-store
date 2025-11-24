@@ -43,9 +43,6 @@ class PointInTimeJoinPipeline(
     * @return Some(Seq[TrainingData]) if data exists, None otherwise
     */
   def execute(): Option[Seq[TrainingData]] = {
-    // Validate configuration
-    validateConfig()
-
     val trainingData = run()
 
     // Check if dataset is empty
@@ -116,18 +113,5 @@ class PointInTimeJoinPipeline(
     joined
   }
 
-  /** Validates the pipeline configuration.
-    *
-    * @throws IllegalArgumentException if configuration is invalid
-    */
-  private def validateConfig(): Unit = {
-    require(config.labelsPath.nonEmpty, "labelsPath cannot be empty")
-    require(config.featuresTable.nonEmpty, "featuresTable cannot be empty")
-    require(config.outputPath.nonEmpty, "outputPath cannot be empty")
-    require(
-      config.partitionBy.nonEmpty,
-      "partitionBy cannot be empty (at least one partition column required)"
-    )
-  }
 }
 

@@ -44,9 +44,6 @@ class BackfillPipeline(
     * @return None (pipeline writes to Iceberg table, no data returned)
     */
   def execute(): Option[FeaturesDaily] = {
-    // Validate configuration
-    validateConfig()
-
     val features = run()
     // Write to Iceberg table
     platform.writer.insertOverwriteIcebergTable(
@@ -138,38 +135,5 @@ class BackfillPipeline(
     features
   }
 
-  /** Validates the pipeline configuration.
-    *
-    * @throws IllegalArgumentException if configuration is invalid
-    */
-  private def validateConfig(): Unit = {
-    require(config.eventsRawPath.nonEmpty, "eventsRawPath cannot be empty")
-    require(config.outputTable.nonEmpty, "outputTable cannot be empty")
-    require(config.startDate.nonEmpty, "startDate cannot be empty")
-    require(config.endDate.nonEmpty, "endDate cannot be empty")
-    require(
-      config.partitionBy.nonEmpty,
-      "partitionBy cannot be empty (at least one partition column required)"
-    )
-
-    // Validate date format (basic check)
-    try {
-      java.sql.Date.valueOf(config.startDate)
-      java.sql.Date.valueOf(config.endDate)
-    } catch {
-      case _: IllegalArgumentException =>
-        throw new IllegalArgumentException(
-          s"Invalid date format. Expected YYYY-MM-DD, got startDate=${config.startDate}, endDate=${config.endDate}"
-        )
-    }
-
-    // Validate date range
-    val start = java.sql.Date.valueOf(config.startDate)
-    val end = java.sql.Date.valueOf(config.endDate)
-    require(
-      !start.after(end),
-      s"startDate (${config.startDate}) must be before or equal to endDate (${config.endDate})"
-    )
-  }
 }
 
