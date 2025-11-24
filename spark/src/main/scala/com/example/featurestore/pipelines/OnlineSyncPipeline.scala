@@ -5,7 +5,7 @@ import com.example.featurestore.types.{
   OnlineSyncPipelineConfig
 }
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.{Dataset, SparkSession}
+import org.apache.spark.sql.SparkSession
 import platform.SparkPlatformTrait
 import redis.clients.jedis.Jedis
 
