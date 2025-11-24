@@ -36,9 +36,11 @@ class OnlineSyncPipeline(
 
   /** Executes the online sync pipeline.
     *
-    * @return None (pipeline writes to Redis, no Dataset returned)
+    * Syncs features to Redis. Returns None as sync doesn't return data.
+    *
+    * @return None (pipeline writes to Redis, no data returned)
     */
-  def execute(): Option[Dataset[FeaturesDaily]] = {
+  def execute(): Option[FeaturesDaily] = {
     // Validate configuration
     validateConfig()
 
@@ -60,6 +62,7 @@ class OnlineSyncPipeline(
       .table(config.featuresTable)
       .filter(col("day") >= cutoffDate)
       .orderBy(col("day").desc)
+      .as[FeaturesDaily]
 
     // Get latest feature snapshot per user
     val latestFeatures = recentFeatures
@@ -73,19 +76,20 @@ class OnlineSyncPipeline(
       )
       .filter(col("rank") === 1)
       .drop("rank")
+      .as[FeaturesDaily]
 
     // Convert to JSON and write to Redis
     val redis = new Jedis(config.redisConfig.host, config.redisConfig.port)
     try {
-      latestFeatures.collect().foreach { row =>
-        val userId = row.getAs[String]("user_id")
-        val day = row.getAs[java.sql.Date]("day").toString
+      latestFeatures.collect().foreach { featuresDaily =>
+        val userId = featuresDaily.user_id
+        val day = featuresDaily.day.toString
         val featuresJson = Map(
           "day" -> day,
-          "event_count_7d" -> Option(row.getAs[Long]("event_count_7d")).map(_.toString).getOrElse("null"),
-          "event_count_30d" -> Option(row.getAs[Long]("event_count_30d")).map(_.toString).getOrElse("null"),
-          "last_event_days_ago" -> Option(row.getAs[Int]("last_event_days_ago")).map(_.toString).getOrElse("null"),
-          "event_type_counts" -> Option(row.getAs[String]("event_type_counts")).getOrElse("null")
+          "event_count_7d" -> featuresDaily.event_count_7d.map(_.toString).getOrElse("null"),
+          "event_count_30d" -> featuresDaily.event_count_30d.map(_.toString).getOrElse("null"),
+          "last_event_days_ago" -> featuresDaily.last_event_days_ago.map(_.toString).getOrElse("null"),
+          "event_type_counts" -> featuresDaily.event_type_counts.getOrElse("null")
         ).map { case (k, v) => s""""$k":$v""" }.mkString("{", ",", "}")
 
         val key = s"features:${userId}"

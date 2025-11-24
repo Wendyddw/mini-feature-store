@@ -40,20 +40,27 @@ class PointInTimeJoinPipeline(
 
   /** Executes the point-in-time join pipeline.
     *
-    * @return Some(Dataset[TrainingData]) with joined labels and features
+    * @return Some(Seq[TrainingData]) if data exists, None otherwise
     */
-  def execute(): Option[Dataset[TrainingData]] = {
+  def execute(): Option[Seq[TrainingData]] = {
     // Validate configuration
     validateConfig()
 
     val trainingData = run()
-    // Write output
-    platform.writer.writeParquet(
-      trainingData.toDF(),
-      config.outputPath,
-      partitionBy = config.partitionBy
-    )
-    Some(trainingData)
+
+    // Check if dataset is empty
+    val collected = trainingData.collect()
+    if (collected.isEmpty) {
+      None
+    } else {
+      // Write output
+      platform.writer.writeParquet(
+        trainingData.toDF(),
+        config.outputPath,
+        partitionBy = config.partitionBy
+      )
+      Some(collected.toSeq)
+    }
   }
 
   /** Runs the point-in-time join pipeline.

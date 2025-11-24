@@ -39,9 +39,11 @@ class BackfillPipeline(
 
   /** Executes the backfill pipeline.
     *
-    * @return None (pipeline writes to Iceberg table, no Dataset returned)
+    * Writes features to Iceberg table. Returns None as backfill doesn't return data.
+    *
+    * @return None (pipeline writes to Iceberg table, no data returned)
     */
-  def execute(): Option[Dataset[FeaturesDaily]] = {
+  def execute(): Option[FeaturesDaily] = {
     // Validate configuration
     validateConfig()
 
