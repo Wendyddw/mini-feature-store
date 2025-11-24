@@ -1,4 +1,4 @@
-package com.example.test
+package com.example.featurestore.suit
 
 import org.apache.spark.sql.SparkSession
 import org.scalatest.{BeforeAndAfterAll, Suite}

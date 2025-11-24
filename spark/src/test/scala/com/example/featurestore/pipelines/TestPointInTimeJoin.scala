@@ -1,8 +1,8 @@
-package com.example.featurestore
+package com.example.featurestore.pipelines
 
 import com.example.featurestore.domain.Schemas
 import com.example.featurestore.pipelines.PointInTimeJoinPipeline
-import com.example.test.SparkTestBase
+import com.example.featurestore.suit.SparkTestBase
 import org.apache.spark.sql.functions._
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
@@ -12,7 +12,7 @@ import org.scalatest.matchers.should.Matchers
   * This test proves that labels at time T only use features from time <= T.
   * This is critical for ML training to prevent future information leakage.
   */
-class DataLeakageTest extends AnyFunSuite with SparkTestBase with Matchers {
+class TestPointInTimeJoin extends AnyFunSuite with SparkTestBase with Matchers {
 
   test("Point-in-time join should not leak future features") {
     import spark.implicits._

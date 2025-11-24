@@ -1,4 +1,4 @@
-package com.example.test
+package com.example.featurestore.suit
 
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers

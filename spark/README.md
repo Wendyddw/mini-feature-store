@@ -31,7 +31,7 @@ spark/
 │   │   └── resources/                         # Configurations (log4j2.xml)
 │   └── test/
 │       ├── scala/
-│       │   └── com/example/test/
+│       │   └── com/example/featurestore/suit/
 │       │       ├── SparkTestBase.scala        # Base trait for parallel test execution
 │       │       └── TestWriter.scala          # In-memory writer for testing
 │       └── resources/                         # Test resources
@@ -129,7 +129,7 @@ val platformWithCustomWriter = PlatformProvider.createLocal("my-app", writer = c
 Extend `SparkTestBase` in your test classes. This provides both a Spark session and an in-memory `TestWriter`:
 
 ```scala
-import com.example.test.SparkTestBase
+import com.example.featurestore.suit.SparkTestBase
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
 
