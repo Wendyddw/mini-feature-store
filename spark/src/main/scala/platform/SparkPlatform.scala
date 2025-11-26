@@ -4,7 +4,7 @@ import org.apache.spark.sql.SparkSession
 
 /** Concrete implementation of SparkPlatformTrait.
   *
-  * Encapsulates a SparkSession and Writer together, providing a unified
+  * Encapsulates a SparkSession, Fetcher, and Writer together, providing a unified
   * platform for data processing operations. The platform manages the lifecycle
   * of the Spark session.
   *
@@ -13,8 +13,8 @@ import org.apache.spark.sql.SparkSession
   *   // Platform is typically created via PlatformProvider
   *   val platform = PlatformProvider.createLocal("my-app")
   *
-  *   // Access Spark session for data operations
-  *   val df = platform.spark.read.parquet("input.parquet")
+  *   // Use fetcher for input operations
+  *   val df = platform.fetcher.readParquet(platform.spark, "input.parquet")
   *   val result = df.filter($"value" > 100)
   *
   *   // Use writer for output operations
@@ -25,10 +25,12 @@ import org.apache.spark.sql.SparkSession
   * }}}
   *
   * @param spark The SparkSession instance for data processing
+  * @param fetcher The Fetchers implementation for data input operations
   * @param writer The Writers implementation for data output operations
   */
 class SparkPlatform(
     val spark: SparkSession,
+    val fetcher: Fetchers,
     val writer: Writers
 ) extends SparkPlatformTrait {
 

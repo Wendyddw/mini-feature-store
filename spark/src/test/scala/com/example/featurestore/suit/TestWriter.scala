@@ -1,8 +1,8 @@
 package com.example.featurestore.suit
 
-import org.apache.spark.sql.{DataFrame, Row, SparkSession, StructType}
+import org.apache.spark.sql.{DataFrame, Row, SparkSession}
+import org.apache.spark.sql.types.StructType
 import platform.Writers
-import scala.collection.mutable
 
 /** In-memory implementation of Writers for testing.
   *
@@ -14,30 +14,18 @@ import scala.collection.mutable
   */
 class TestWriter(spark: SparkSession) extends Writers {
   // Store materialized data and schema separately for better test isolation
-  private val db: mutable.Map[String, Seq[Row]] = mutable.Map.empty
-  private val dbSchema: mutable.Map[String, StructType] = mutable.Map.empty
-
-  /** Retrieves stored data as a DataFrame.
-    *
-    * @param key The storage key (path or table name)
-    * @return Option containing DataFrame if data exists, None otherwise
-    */
-  def getStoredData(key: String): Option[DataFrame] = {
-    for {
-      rows <- db.get(key)
-      schema <- dbSchema.get(key)
-    } yield {
-      spark.createDataFrame(spark.sparkContext.parallelize(rows), schema)
-    }
-  }
+  // Made protected so TestFetcher can access the storage
+  // Using immutable Map with var for functional style (reassign on each write)
+  protected[suit] var db: Map[String, Seq[Row]] = Map.empty
+  protected[suit] var dbSchema: Map[String, StructType] = Map.empty
 
   /** Returns all storage keys that have been written to. */
   def getAllStoredKeys: Set[String] = db.keys.toSet
 
   /** Clears all stored data and schemas. */
   def clearStorage(): Unit = {
-    db.clear()
-    dbSchema.clear()
+    db = Map.empty
+    dbSchema = Map.empty
   }
 
   /** Stores DataFrame data by materializing it immediately.
@@ -50,23 +38,23 @@ class TestWriter(spark: SparkSession) extends Writers {
 
     mode match {
       case "overwrite" | "error" =>
-        db(key) = rows
-        dbSchema(key) = schema
+        db = db + (key -> rows)
+        dbSchema = dbSchema + (key -> schema)
       case "append" =>
         val existingRows = db.getOrElse(key, Seq.empty)
-        db(key) = existingRows ++ rows
+        db = db + (key -> (existingRows ++ rows))
         // Schema should match, but we'll keep the original
         if (!dbSchema.contains(key)) {
-          dbSchema(key) = schema
+          dbSchema = dbSchema + (key -> schema)
         }
       case "ignore" =>
         if (!db.contains(key)) {
-          db(key) = rows
-          dbSchema(key) = schema
+          db = db + (key -> rows)
+          dbSchema = dbSchema + (key -> schema)
         }
       case _ =>
-        db(key) = rows
-        dbSchema(key) = schema
+        db = db + (key -> rows)
+        dbSchema = dbSchema + (key -> schema)
     }
   }
 

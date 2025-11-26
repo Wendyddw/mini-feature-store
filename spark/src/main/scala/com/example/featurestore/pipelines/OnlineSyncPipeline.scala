@@ -6,7 +6,7 @@ import com.example.featurestore.types.{
 }
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.SparkSession
-import platform.{Fetchers, SparkPlatformTrait}
+import platform.SparkPlatformTrait
 import redis.clients.jedis.Jedis
 
 /** Online sync pipeline: syncs features_daily to Redis for low-latency serving.
@@ -54,7 +54,7 @@ class OnlineSyncPipeline(
 
     // Read recent features from Iceberg
     val cutoffDate = date_sub(current_date(), config.hoursBack / 24)
-    val recentFeatures = Fetchers.readIcebergTable(spark, config.featuresTable)
+    val recentFeatures = platform.fetcher.readIcebergTable(spark, config.featuresTable)
       .filter(col("day") >= cutoffDate)
       .orderBy(col("day").desc)
       .as[FeaturesDaily]

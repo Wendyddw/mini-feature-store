@@ -36,8 +36,9 @@ object PlatformProvider {
     * @param master Spark master URL (e.g., "yarn", "local[*]", "spark://host:port").
     *               If None, uses default from spark-submit or spark-defaults.conf
     * @param config Additional Spark configuration options as key-value pairs
+    * @param fetcher Fetcher implementation to use (defaults to ProdFetcher for production)
     * @param writer Writer implementation to use (defaults to ProdWriter for production)
-    * @return Configured SparkPlatformTrait instance with SparkSession and Writer
+    * @return Configured SparkPlatformTrait instance with SparkSession, Fetcher, and Writer
     *
     * @example
     * {{{
@@ -62,6 +63,7 @@ object PlatformProvider {
       appName: String,
       master: Option[String] = None,
       config: Map[String, String] = Map.empty,
+      fetcher: Fetchers = ProdFetcher,
       writer: Writers = new ProdWriter()
   ): SparkPlatformTrait = {
     val sparkConf = new SparkConf()
@@ -75,7 +77,7 @@ object PlatformProvider {
       .config(sparkConf)
       .getOrCreate()
 
-    new SparkPlatform(spark, writer)
+    new SparkPlatform(spark, fetcher, writer)
   }
 
   /** Creates a local Spark platform for development and testing.
@@ -85,6 +87,7 @@ object PlatformProvider {
     *
     * @param appName Name of the Spark application
     * @param config Additional Spark configuration (commonly used for testing)
+    * @param fetcher Fetcher implementation (use TestFetcher for in-memory testing)
     * @param writer Writer implementation (use TestWriter for in-memory testing)
     * @return Configured SparkPlatformTrait instance for local execution
     *
@@ -116,9 +119,10 @@ object PlatformProvider {
   def createLocal(
       appName: String,
       config: Map[String, String] = Map.empty,
+      fetcher: Fetchers = ProdFetcher,
       writer: Writers = new ProdWriter()
   ): SparkPlatformTrait = {
-    create(appName, Some("local[*]"), config, writer)
+    create(appName, Some("local[*]"), config, fetcher, writer)
   }
 }
 

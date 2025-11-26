@@ -12,7 +12,8 @@ class SparkTestBaseTest extends AnyFunSuite with SparkTestBase with Matchers {
   }
 
   test("Should be able to create DataFrames") {
-    import spark.implicits._
+    val sparkSession = spark
+    import sparkSession.implicits._
 
     val data = Seq(("Alice", 30), ("Bob", 25), ("Charlie", 35))
     val df: DataFrame = data.toDF("name", "age")
@@ -23,7 +24,8 @@ class SparkTestBaseTest extends AnyFunSuite with SparkTestBase with Matchers {
   }
 
   test("Should be able to perform transformations") {
-    import spark.implicits._
+    val sparkSession = spark
+    import sparkSession.implicits._
 
     val data = Seq(1, 2, 3, 4, 5)
     val df = data.toDF("value")

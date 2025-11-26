@@ -12,7 +12,7 @@ import org.apache.spark.sql.SparkSession
   * {{{
   *   // Work with the trait interface (recommended)
   *   def processData(platform: SparkPlatformTrait): Unit = {
-  *     val df = platform.spark.read.parquet("input.parquet")
+  *     val df = platform.fetcher.readParquet(platform.spark, "input.parquet")
   *     platform.writer.writeParquet(df, "output.parquet")
   *   }
   *
@@ -28,6 +28,9 @@ import org.apache.spark.sql.SparkSession
 trait SparkPlatformTrait {
   /** The SparkSession for data processing operations */
   val spark: SparkSession
+
+  /** The Fetchers implementation for data input operations */
+  val fetcher: Fetchers
 
   /** The Writers implementation for data output operations */
   val writer: Writers

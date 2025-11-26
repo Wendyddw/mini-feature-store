@@ -7,7 +7,7 @@ import com.example.featurestore.types.{
 }
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{Dataset, SparkSession}
-import platform.{Fetchers, SparkPlatformTrait}
+import platform.SparkPlatformTrait
 
 /** Point-in-time join pipeline: joins labels with features_daily.
   *
@@ -70,15 +70,14 @@ class PointInTimeJoinPipeline(
     import spark.implicits._
 
     // Read labels
-    val labels = Fetchers.readParquet(spark, config.labelsPath, Some(Schemas.labelsSchema))
+    val labels = platform.fetcher.readParquet(spark, config.labelsPath, Some(Schemas.labelsSchema))
       .withColumn("as_of_date", to_date(col("as_of_ts")))
 
     // Read features_daily from Iceberg
-    val features = Fetchers.readIcebergTable(spark, config.featuresTable)
+    val features = platform.fetcher.readIcebergTable(spark, config.featuresTable)
       .withColumn("feature_date", col("day"))
 
-    // Point-in-time join: feature_day <= as_of_ts_day
-    // Then select the latest feature snapshot for each label
+    // Step 1: Point-in-time join - feature_day <= as_of_ts_day
     val joined = labels
       .join(
         features,
@@ -86,16 +85,22 @@ class PointInTimeJoinPipeline(
           features("feature_date") <= labels("as_of_date"),
         "left"
       )
+      .drop(features("user_id"))
+
+    // Step 2: Ranking - select the latest feature snapshot for each label
+    val ranked = joined
       .withColumn(
         "rank",
         row_number().over(
           org.apache.spark.sql.expressions.Window
-            .partitionBy(labels("user_id"), labels("as_of_ts"))
-            .orderBy(features("feature_date").desc)
+            .partitionBy(col("user_id"), col("as_of_ts"))
+            .orderBy(col("feature_date").desc)
         )
       )
       .filter(col("rank") === 1)
-      .drop("rank", "feature_date", "as_of_date")
+
+    // Step 3: Select - choose final columns and convert to TrainingData
+    val trainingData = ranked
       .select(
         col("user_id"),
         col("label"),
@@ -108,7 +113,7 @@ class PointInTimeJoinPipeline(
       )
       .as[TrainingData]
 
-    joined
+    trainingData
   }
 
 }

@@ -1,29 +1,29 @@
 package com.example.featurestore.pipelines
 
-import com.example.featurestore.domain.Schemas
-import com.example.featurestore.pipelines.PointInTimeJoinPipeline
+import com.example.featurestore.types.{
+  PointInTimeJoinPipelineConfig,
+  TrainingData
+}
 import com.example.featurestore.suit.SparkTestBase
-import org.apache.spark.sql.functions._
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
 
-/** Validation test to ensure no data leakage in point-in-time joins.
+/** End-to-end test for PointInTimeJoinPipeline.
   *
-  * This test proves that labels at time T only use features from time <= T.
-  * This is critical for ML training to prevent future information leakage.
+  * Tests the complete pipeline flow:
+  * 1. Arrange: Create test data (features table and labels parquet)
+  * 2. Action: Execute PointInTimeJoinPipeline
+  * 3. Assert: Compare expected vs actual results
+  *
+  * This ensures no data leakage - labels at time T only use features from time <= T.
   */
 class TestPointInTimeJoin extends AnyFunSuite with SparkTestBase with Matchers {
 
   test("Point-in-time join should not leak future features") {
-    import spark.implicits._
+    val sparkSession = spark
+    import sparkSession.implicits._
 
-    // Create test data: events on days 1, 2, 3
-    val eventsRaw = Seq(
-      ("user1", "click", java.sql.Timestamp.valueOf("2024-01-01 10:00:00")),
-      ("user1", "purchase", java.sql.Timestamp.valueOf("2024-01-02 10:00:00")),
-      ("user1", "click", java.sql.Timestamp.valueOf("2024-01-03 10:00:00"))
-    ).toDF("user_id", "event_type", "ts")
-
+    // ARRANGE: Create test data
     // Create features_daily: features computed for each day
     val featuresDaily = Seq(
       ("user1", java.sql.Date.valueOf("2024-01-01"), 1L, 1L, 0, "1"),
@@ -37,64 +37,75 @@ class TestPointInTimeJoin extends AnyFunSuite with SparkTestBase with Matchers {
       ("user1", 1.0, java.sql.Timestamp.valueOf("2024-01-02 12:00:00"))
     ).toDF("user_id", "label", "as_of_ts")
 
-    // Write test data to TestWriter
-    testWriter.writeParquet(eventsRaw, "test/events_raw")
+    // Write test data using TestWriter
     testWriter.insertOverwriteIcebergTable(featuresDaily, "test.features_daily")
     testWriter.writeParquet(labels, "test/labels")
 
-    // Get stored data
-    val storedEvents = testWriter.getStoredData("test/events_raw").get
-    val storedFeatures = testWriter.getStoredData("test.features_daily").get
-    val storedLabels = testWriter.getStoredData("test/labels").get
-
-    // Perform point-in-time join manually to verify logic
-    val labelsWithDate = storedLabels
-      .withColumn("as_of_date", to_date(col("as_of_ts")))
-
-    val joined = labelsWithDate
-      .join(
-        storedFeatures.withColumn("feature_date", col("day")),
-        labelsWithDate("user_id") === storedFeatures("user_id") &&
-          storedFeatures("feature_date") <= labelsWithDate("as_of_date"),
-        "left"
+    // Expected result: label from day 2 should use features from day 2 (latest <= as_of_date)
+    val expected = Seq(
+      TrainingData(
+        user_id = "user1",
+        label = 1.0,
+        as_of_ts = java.sql.Timestamp.valueOf("2024-01-02 12:00:00"),
+        day = java.sql.Date.valueOf("2024-01-02"),
+        event_count_7d = Some(2L),
+        event_count_30d = Some(2L),
+        last_event_days_ago = Some(0),
+        event_type_counts = Some("2")
       )
-      .withColumn(
-        "rank",
-        row_number().over(
-          org.apache.spark.sql.expressions.Window
-            .partitionBy(labelsWithDate("user_id"), labelsWithDate("as_of_ts"))
-            .orderBy(storedFeatures("feature_date").desc)
-        )
-      )
-      .filter(col("rank") === 1)
-      .drop("rank", "feature_date", "as_of_date")
+    )
 
-    // Verify: the joined feature should be from day 2 (as_of_date), not day 3
-    val result = joined.collect()
-    result.length should be(1)
+    // ACTION: Execute pipeline
+    val config = PointInTimeJoinPipelineConfig(
+      labelsPath = "test/labels",
+      featuresTable = "test.features_daily",
+      outputPath = "test/training_data"
+    )
+    val pipeline = new PointInTimeJoinPipeline(this.platform, config)
+    val result = pipeline.execute()
 
-    val featureDay = result(0).getAs[java.sql.Date]("day")
+    // ASSERT: Compare expected vs actual
+    result should be(defined)
+    val actual = result.get
+
+    // Verify we got exactly one result
+    actual.length should be(1)
+
+    // Verify the result matches expected
+    val actualResult = actual.head
+    actualResult.user_id should be(expected.head.user_id)
+    actualResult.label should be(expected.head.label)
+    actualResult.as_of_ts should be(expected.head.as_of_ts)
+    actualResult.day should be(expected.head.day)
+    actualResult.event_count_7d should be(expected.head.event_count_7d)
+    actualResult.event_count_30d should be(expected.head.event_count_30d)
+    actualResult.last_event_days_ago should be(expected.head.last_event_days_ago)
+    actualResult.event_type_counts should be(expected.head.event_type_counts)
+
+    // Verify no future data leaked (day should be <= as_of_date)
     val asOfDate = java.sql.Date.valueOf("2024-01-02")
+    actualResult.day.compareTo(asOfDate) should be <= 0
 
-    // The feature day should be <= as_of_date (day 2)
-    featureDay.compareTo(asOfDate) should be <= 0
-
-    // Specifically, it should be day 2 (the latest feature <= as_of_date)
-    featureDay should be(asOfDate)
+    // Specifically verify it's day 2, not day 3
+    actualResult.day should be(asOfDate)
+    actualResult.day.toString should be("2024-01-02")
+    actualResult.day.toString should not be("2024-01-03")
 
     // Verify event_count_7d is 2 (from day 2), not 3 (from day 3)
-    val eventCount = result(0).getAs[Long]("event_count_7d")
-    eventCount should be(2L) // From day 2, not day 3
+    actualResult.event_count_7d should be(Some(2L))
+    actualResult.event_count_7d should not be(Some(3L))
 
-    // Verify no future data leaked
-    val featureDateStr = featureDay.toString
-    featureDateStr should be("2024-01-02")
-    featureDateStr should not be("2024-01-03")
+    // Verify output was written
+    val outputData = testFetcher.getStoredData("test/training_data")
+    outputData should be(defined)
+    outputData.get.count() should be(1)
   }
 
   test("Point-in-time join should handle multiple users correctly") {
-    import spark.implicits._
+    val sparkSession = spark
+    import sparkSession.implicits._
 
+    // ARRANGE: Create test data
     // Create features for two users
     val featuresDaily = Seq(
       ("user1", java.sql.Date.valueOf("2024-01-01"), 1L, 1L, 0, "1"),
@@ -109,45 +120,65 @@ class TestPointInTimeJoin extends AnyFunSuite with SparkTestBase with Matchers {
       ("user2", 0.0, java.sql.Timestamp.valueOf("2024-01-02 12:00:00"))
     ).toDF("user_id", "label", "as_of_ts")
 
+    // Write test data using TestWriter
     testWriter.insertOverwriteIcebergTable(featuresDaily, "test.features_daily")
     testWriter.writeParquet(labels, "test/labels")
 
-    val storedFeatures = testWriter.getStoredData("test.features_daily").get
-    val storedLabels = testWriter.getStoredData("test/labels").get
-
-    val labelsWithDate = storedLabels
-      .withColumn("as_of_date", to_date(col("as_of_ts")))
-
-    val joined = labelsWithDate
-      .join(
-        storedFeatures.withColumn("feature_date", col("day")),
-        labelsWithDate("user_id") === storedFeatures("user_id") &&
-          storedFeatures("feature_date") <= labelsWithDate("as_of_date"),
-        "left"
+    // Expected results
+    val expected = Seq(
+      TrainingData(
+        user_id = "user1",
+        label = 1.0,
+        as_of_ts = java.sql.Timestamp.valueOf("2024-01-01 12:00:00"),
+        day = java.sql.Date.valueOf("2024-01-01"),
+        event_count_7d = Some(1L),
+        event_count_30d = Some(1L),
+        last_event_days_ago = Some(0),
+        event_type_counts = Some("1")
+      ),
+      TrainingData(
+        user_id = "user2",
+        label = 0.0,
+        as_of_ts = java.sql.Timestamp.valueOf("2024-01-02 12:00:00"),
+        day = java.sql.Date.valueOf("2024-01-02"),
+        event_count_7d = Some(10L),
+        event_count_30d = Some(10L),
+        last_event_days_ago = Some(0),
+        event_type_counts = Some("10")
       )
-      .withColumn(
-        "rank",
-        row_number().over(
-          org.apache.spark.sql.expressions.Window
-            .partitionBy(labelsWithDate("user_id"), labelsWithDate("as_of_ts"))
-            .orderBy(storedFeatures("feature_date").desc)
-        )
-      )
-      .filter(col("rank") === 1)
-      .drop("rank", "feature_date", "as_of_date")
+    )
 
-    val results = joined.collect()
-    results.length should be(2)
+    // ACTION: Execute pipeline
+    val config = PointInTimeJoinPipelineConfig(
+      labelsPath = "test/labels",
+      featuresTable = "test.features_daily",
+      outputPath = "test/training_data"
+    )
+    val pipeline = new PointInTimeJoinPipeline(this.platform, config)
+    val result = pipeline.execute()
 
-    // user1 at 2024-01-01 should get features from 2024-01-01
-    val user1Result = results.find(_.getAs[String]("user_id") == "user1").get
-    user1Result.getAs[java.sql.Date]("day") should be(java.sql.Date.valueOf("2024-01-01"))
-    user1Result.getAs[Long]("event_count_7d") should be(1L)
+    // ASSERT: Compare expected vs actual
+    result should be(defined)
+    val actual = result.get
 
-    // user2 at 2024-01-02 should get features from 2024-01-02
-    val user2Result = results.find(_.getAs[String]("user_id") == "user2").get
-    user2Result.getAs[java.sql.Date]("day") should be(java.sql.Date.valueOf("2024-01-02"))
-    user2Result.getAs[Long]("event_count_7d") should be(10L)
+    // Verify we got exactly two results
+    actual.length should be(2)
+
+    // Verify user1 result
+    val user1Result = actual.find(_.user_id == "user1").get
+    user1Result.day should be(expected.find(_.user_id == "user1").get.day)
+    user1Result.event_count_7d should be(expected.find(_.user_id == "user1").get.event_count_7d)
+    user1Result.label should be(1.0)
+
+    // Verify user2 result
+    val user2Result = actual.find(_.user_id == "user2").get
+    user2Result.day should be(expected.find(_.user_id == "user2").get.day)
+    user2Result.event_count_7d should be(expected.find(_.user_id == "user2").get.event_count_7d)
+    user2Result.label should be(0.0)
+
+    // Verify output was written
+    val outputData = testFetcher.getStoredData("test/training_data")
+    outputData should be(defined)
+    outputData.get.count() should be(2)
   }
 }
-

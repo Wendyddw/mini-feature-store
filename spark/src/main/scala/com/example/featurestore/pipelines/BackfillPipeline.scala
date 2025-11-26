@@ -7,7 +7,7 @@ import com.example.featurestore.types.{
 }
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{Dataset, SparkSession}
-import platform.{Fetchers, SparkPlatformTrait}
+import platform.SparkPlatformTrait
 
 /** Backfill pipeline: transforms events_raw → features_daily.
   *
@@ -64,7 +64,7 @@ class BackfillPipeline(
     import spark.implicits._
 
     // Read events_raw
-    val eventsRaw = Fetchers.readParquet(
+    val eventsRaw = platform.fetcher.readParquet(
       spark,
       config.eventsRawPath,
       Some(Schemas.eventsRawSchema)
