@@ -251,6 +251,14 @@ Syncs recent features to Redis:
 cd spark && sbt test
 ```
 
+### Test Architecture
+
+The test framework uses in-memory storage for fast, isolated tests:
+- **TestFetcher**: Reads from in-memory storage (dictionary-based)
+- **TestWriter**: Writes to in-memory storage
+- **E2E Tests**: Follow Arrange-Action-Assert pattern for comprehensive testing
+- All data operations happen in memory without actual I/O
+
 ### Data Leakage Validation
 
 The `DataLeakageTest` ensures point-in-time joins work correctly:
