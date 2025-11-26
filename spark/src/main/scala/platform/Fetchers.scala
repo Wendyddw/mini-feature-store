@@ -46,5 +46,14 @@ object Fetchers {
     }
     readerWithSchema.csv(path)
   }
+
+  def readIcebergTable(
+      spark: SparkSession,
+      tableName: String
+  ): DataFrame = {
+    spark.read
+      .format("iceberg")
+      .table(tableName)
+  }
 }
 

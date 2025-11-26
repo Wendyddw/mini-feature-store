@@ -74,9 +74,7 @@ class PointInTimeJoinPipeline(
       .withColumn("as_of_date", to_date(col("as_of_ts")))
 
     // Read features_daily from Iceberg
-    val features = spark.read
-      .format("iceberg")
-      .table(config.featuresTable)
+    val features = Fetchers.readIcebergTable(spark, config.featuresTable)
       .withColumn("feature_date", col("day"))
 
     // Point-in-time join: feature_day <= as_of_ts_day
