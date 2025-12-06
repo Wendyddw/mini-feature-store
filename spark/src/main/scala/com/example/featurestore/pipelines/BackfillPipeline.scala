@@ -16,19 +16,58 @@ import platform.SparkPlatformTrait
   * - Days since last event
   * - Event type counts
   *
-  * Common use patterns:
+  * Data Transformation:
+  * 1. Read events_raw (user_id, event_type, ts)
+  * 2. Generate date range from startDate to endDate
+  * 3. Cross join distinct users × date range → ensures every (user, day) combination exists
+  * 4. Left join with events filtered by:
+  *    - Same user_id
+  *    - event_date <= feature day (point-in-time correctness, no data leakage)
+  *    - event_date >= feature day - 30 days (optimization: only last 30 days needed)
+  * 5. Group by (user_id, day) and aggregate:
+  *    - event_count_7d: Count events in last 7 days (inclusive)
+  *    - event_count_30d: Count events in last 30 days (inclusive)
+  *    - last_event_days_ago: Days since most recent event (0 if event on feature day)
+  *    - event_type_counts: Count of distinct event types in 30-day window
+  * 6. Write to Iceberg table partitioned by day
+  *
+  * Use cross join to ensure complete coverage: every user has a row for every day in the
+  * date range, even if they had no events. This is critical for point-in-time joins in
+  * downstream pipelines, which need features for all historical dates.
+  *
+  * Sample Data Transformation (startDate="2024-01-01", endDate="2024-01-05"):
+  *
+  * Input (events_raw):
   * {{{
-  *   val platform = PlatformProvider.createLocal("backfill-job")
-  *   val config = BackfillPipelineConfig(
-  *     eventsRawPath = "s3://bucket/events_raw",
-  *     outputTable = "feature_store.features_daily",
-  *     startDate = "2024-01-01",
-  *     endDate = "2024-12-31"
-  *   )
-  *   val pipeline = new BackfillPipeline(platform, config)
-  *   pipeline.execute()
-  *   platform.stop()
+  * user_id | event_type | ts
+  * --------|------------|-------------------
+  * user1   | click      | 2024-01-01 10:00:00
+  * user1   | purchase   | 2024-01-03 14:30:00
+  * user1   | click      | 2024-01-05 16:45:00
   * }}}
+  *
+  * After cross join (userDays):
+  * {{{
+  * user_id | day
+  * --------|----------
+  * user1   | 2024-01-01
+  * user1   | 2024-01-02
+  * user1   | 2024-01-03
+  * user1   | 2024-01-04
+  * user1   | 2024-01-05
+  * }}}
+  *
+  * Output (features_daily):
+  * {{{
+  * user_id | day         | event_count_7d | event_count_30d | last_event_days_ago | event_type_counts
+  * --------|-------------|----------------|-----------------|---------------------|------------------
+  * user1   | 2024-01-01  | 1              | 1               | 0                   | 1
+  * user1   | 2024-01-02  | 1              | 1               | 1                   | 1
+  * user1   | 2024-01-03  | 2              | 2               | 0                   | 2
+  * user1   | 2024-01-04  | 2              | 2               | 1                   | 2
+  * user1   | 2024-01-05  | 3              | 3               | 0                   | 2
+  * }}}
+  *
   */
 class BackfillPipeline(
     platform: SparkPlatformTrait,
