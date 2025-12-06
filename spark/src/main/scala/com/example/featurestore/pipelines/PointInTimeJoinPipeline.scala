@@ -18,18 +18,40 @@ import platform.SparkPlatformTrait
   * This is critical for ML training to ensure features used are only from
   * time points before or at the label timestamp.
   *
-  * Common use patterns:
+  * Data Transformation:
+  * 1. Read labels (user_id, label, as_of_ts) and features_daily (user_id, day, features...)
+  * 2. Join on user_id where feature_date <= as_of_date (point-in-time correctness)
+  * 3. Rank features by feature_date descending per (user_id, as_of_ts)
+  * 4. Filter to rank=1 (latest feature snapshot)
+  * 5. Select final columns and write to Parquet
+  *
+  * Sample Data Transformation:
+  *
+  * Input (labels):
   * {{{
-  *   val platform = PlatformProvider.createLocal("point-in-time-join")
-  *   val config = PointInTimeJoinPipelineConfig(
-  *     labelsPath = "s3://bucket/labels",
-  *     featuresTable = "feature_store.features_daily",
-  *     outputPath = "s3://bucket/training_data"
-  *   )
-  *   val pipeline = new PointInTimeJoinPipeline(platform, config)
-  *   val trainingData = pipeline.execute().get
-  *   platform.stop()
+  * user_id | label | as_of_ts
+  * --------|-------|-------------------
+  * user1   | 1.0   | 2024-01-03 12:00:00
   * }}}
+  *
+  * Input (features_daily):
+  * {{{
+  * user_id | day         | event_count_7d
+  * --------|-------------|---------------
+  * user1   | 2024-01-03  | 2
+  * user1   | 2024-01-04  | 5  (future, excluded)
+  * }}}
+  *
+  * Output (training_data):
+  * {{{
+  * user_id | label | as_of_ts          | day         | event_count_7d
+  * --------|-------|-------------------|-------------|---------------
+  * user1   | 1.0   | 2024-01-03 12:00  | 2024-01-03  | 2
+  * }}}
+  *
+  * Key point: For user1's label at 2024-01-03, we use features from 2024-01-03 (latest on or before
+  * the label timestamp). Features from 2024-01-04 are excluded (feature_date > as_of_date),
+  * preventing data leakage.
   */
 class PointInTimeJoinPipeline(
     platform: SparkPlatformTrait,
