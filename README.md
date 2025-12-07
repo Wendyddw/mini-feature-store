@@ -18,8 +18,8 @@ graph TB
     end
 
     subgraph "Storage"
-        FD[features_daily<br/>Data Lakehouse: Iceberg<br/>Partitioned by day]
-        R[(Redis<br/>Online Store)]
+        FD[features_daily<br/>OFFLINE STORE<br/>Data Lakehouse: Iceberg<br/>Table: feature_store.features_daily<br/>Partitioned by day]
+        R[(Redis<br/>ONLINE STORE)]
     end
 
     subgraph "Serving"
@@ -33,7 +33,7 @@ graph TB
     ER --> BP
     BP --> FD
     L --> PITJ
-    FD -->|Programmatic Access<br/>Spark/SQL| PITJ
+    FD -->|Offline Access<br/>Spark/SQL| PITJ
     PITJ --> TD
     FD --> OS
     OS --> R
