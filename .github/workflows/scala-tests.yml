@@ -1,0 +1,40 @@
+name: Scala Tests
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    name: Run Scala Tests
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+
+    - name: Cache SBT dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.sbt
+          ~/.ivy2/cache
+          spark/target
+          spark/project/target
+        key: ${{ runner.os }}-sbt-${{ hashFiles('spark/build.sbt', 'spark/project/build.properties') }}
+        restore-keys: |
+          ${{ runner.os }}-sbt-
+
+    - name: Run tests in com.example.featurestore
+      working-directory: spark
+      run: |
+        sbt test
+
