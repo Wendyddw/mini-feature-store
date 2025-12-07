@@ -18,13 +18,13 @@ graph TB
     end
 
     subgraph "Storage"
-        FD[features_daily<br/>Iceberg Table<br/>Partitioned by day]
+        FD[features_daily<br/>Data Lakehouse: Iceberg<br/>Partitioned by day]
         TD[training_data<br/>Parquet<br/>Joined labels + features]
         R[(Redis<br/>Online Store)]
     end
 
     subgraph "Serving"
-        API[FastAPI<br/>Feature Serving API]
+        API[FastAPI<br/>Feature Serving API<br/>Online: /features/online<br/>Offline: /features/offline]
     end
 
     ER --> BP
@@ -34,8 +34,8 @@ graph TB
     PITJ --> TD
     FD --> OS
     OS --> R
-    FD --> API
-    R --> API
+    R -->|Online Serving| API
+    FD -->|Offline Serving| API
 
     style ER fill:#e1f5ff
     style L fill:#e1f5ff
