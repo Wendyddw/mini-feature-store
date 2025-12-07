@@ -34,12 +34,11 @@ object Schemas {
 
   /** Schema for features_daily table.
     *
-    * Stores daily aggregated features per user.
-    * Features include:
-    * - event_count_7d: count of events in last 7 days
-    * - event_count_30d: count of events in last 30 days
-    * - last_event_days_ago: days since last event
-    * - event_type_counts: counts by event type (as JSON string for simplicity)
+    * Stores daily aggregated features per user. Features include:
+    *   - event_count_7d: count of events in last 7 days
+    *   - event_count_30d: count of events in last 30 days
+    *   - last_event_days_ago: days since last event
+    *   - event_type_counts: counts by event type (as JSON string for simplicity)
     */
   val featuresDailySchema: StructType = StructType(
     Array(
@@ -52,4 +51,3 @@ object Schemas {
     )
   )
 }
-

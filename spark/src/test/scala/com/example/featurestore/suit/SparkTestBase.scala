@@ -7,9 +7,9 @@ import platform.{PlatformProvider, SparkPlatform, SparkPlatformTrait}
 trait SparkTestBase extends BeforeAndAfterAll { this: Suite =>
 
   @transient var platform: SparkPlatformTrait = _
-  @transient var spark: SparkSession = _
-  @transient var testWriter: TestWriter = _
-  @transient var testFetcher: TestFetcher = _
+  @transient var spark: SparkSession          = _
+  @transient var testWriter: TestWriter       = _
+  @transient var testFetcher: TestFetcher     = _
 
   override def beforeAll(): Unit = {
     super.beforeAll()
@@ -17,7 +17,7 @@ trait SparkTestBase extends BeforeAndAfterAll { this: Suite =>
       appName = this.getClass.getSimpleName,
       config = Map(
         "spark.sql.shuffle.partitions" -> "1",
-        "spark.default.parallelism" -> "1"
+        "spark.default.parallelism"    -> "1"
       )
     )
     spark = platform.spark
@@ -52,4 +52,3 @@ trait SparkTestBase extends BeforeAndAfterAll { this: Suite =>
     super.afterAll()
   }
 }
-

@@ -1,10 +1,7 @@
 package com.example.featurestore.pipelines
 
 import com.example.featurestore.domain.Schemas
-import com.example.featurestore.types.{
-  PointInTimeJoinPipelineConfig,
-  TrainingData
-}
+import com.example.featurestore.types.{PointInTimeJoinPipelineConfig, TrainingData}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{Dataset, SparkSession}
 import platform.SparkPlatformTrait
@@ -12,18 +9,17 @@ import platform.SparkPlatformTrait
 /** Point-in-time join pipeline: joins labels with features_daily.
   *
   * Performs temporal join ensuring no data leakage:
-  * - Joins labels with features where feature_day <= as_of_ts_day
-  * - Selects the latest feature snapshot for each label
+  *   - Joins labels with features where feature_day <= as_of_ts_day
+  *   - Selects the latest feature snapshot for each label
   *
-  * This is critical for ML training to ensure features used are only from
-  * time points before or at the label timestamp.
+  * This is critical for ML training to ensure features used are only from time points before or at
+  * the label timestamp.
   *
   * Data Transformation:
-  * 1. Read labels (user_id, label, as_of_ts) and features_daily (user_id, day, features...)
-  * 2. Join on user_id where feature_date <= as_of_date (point-in-time correctness)
-  * 3. Rank features by feature_date descending per (user_id, as_of_ts)
-  * 4. Filter to rank=1 (latest feature snapshot)
-  * 5. Select final columns and write to Parquet
+  *   1. Read labels (user_id, label, as_of_ts) and features_daily (user_id, day, features...) 2.
+  *      Join on user_id where feature_date <= as_of_date (point-in-time correctness) 3. Rank
+  *      features by feature_date descending per (user_id, as_of_ts) 4. Filter to rank=1 (latest
+  *      feature snapshot) 5. Select final columns and write to Parquet
   *
   * Sample Data Transformation:
   *
@@ -54,15 +50,16 @@ import platform.SparkPlatformTrait
   * preventing data leakage.
   */
 class PointInTimeJoinPipeline(
-    platform: SparkPlatformTrait,
-    config: PointInTimeJoinPipelineConfig
+  platform: SparkPlatformTrait,
+  config: PointInTimeJoinPipelineConfig
 ) {
 
   private val spark: SparkSession = platform.spark
 
   /** Executes the point-in-time join pipeline.
     *
-    * @return Some(Seq[TrainingData]) if data exists, None otherwise
+    * @return
+    *   Some(Seq[TrainingData]) if data exists, None otherwise
     */
   def execute(): Option[Seq[TrainingData]] = {
     val trainingData = run()
@@ -86,17 +83,20 @@ class PointInTimeJoinPipeline(
     *
     * Internal implementation method.
     *
-    * @return Dataset[TrainingData] with joined labels and features
+    * @return
+    *   Dataset[TrainingData] with joined labels and features
     */
   private def run(): Dataset[TrainingData] = {
     import spark.implicits._
 
     // Read labels
-    val labels = platform.fetcher.readParquet(spark, config.labelsPath, Some(Schemas.labelsSchema))
+    val labels = platform.fetcher
+      .readParquet(spark, config.labelsPath, Some(Schemas.labelsSchema))
       .withColumn("as_of_date", to_date(col("as_of_ts")))
 
     // Read features_daily from Iceberg
-    val features = platform.fetcher.readIcebergTable(spark, config.featuresTable)
+    val features = platform.fetcher
+      .readIcebergTable(spark, config.featuresTable)
       .withColumn("feature_date", col("day"))
 
     // Step 1: Point-in-time join - feature_day <= as_of_ts_day
@@ -139,4 +139,3 @@ class PointInTimeJoinPipeline(
   }
 
 }
-

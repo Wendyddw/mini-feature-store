@@ -1,9 +1,6 @@
 package com.example.featurestore.pipelines
 
-import com.example.featurestore.types.{
-  FeaturesDaily,
-  OnlineSyncPipelineConfig
-}
+import com.example.featurestore.types.{FeaturesDaily, OnlineSyncPipelineConfig}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.SparkSession
 import platform.SparkPlatformTrait
@@ -11,8 +8,8 @@ import redis.clients.jedis.Jedis
 
 /** Online sync pipeline: syncs features_daily to Redis for low-latency serving.
   *
-  * Syncs the last 24 hours of features to Redis, keyed by user_id.
-  * This enables fast feature serving for online inference.
+  * Syncs the last 24 hours of features to Redis, keyed by user_id. This enables fast feature
+  * serving for online inference.
   *
   * Common use patterns:
   * {{{
@@ -28,8 +25,8 @@ import redis.clients.jedis.Jedis
   * }}}
   */
 class OnlineSyncPipeline(
-    platform: SparkPlatformTrait,
-    config: OnlineSyncPipelineConfig
+  platform: SparkPlatformTrait,
+  config: OnlineSyncPipelineConfig
 ) {
 
   private val spark: SparkSession = platform.spark
@@ -38,7 +35,8 @@ class OnlineSyncPipeline(
     *
     * Syncs features to Redis. Returns None as sync doesn't return data.
     *
-    * @return None (pipeline writes to Redis, no data returned)
+    * @return
+    *   None (pipeline writes to Redis, no data returned)
     */
   def execute(): Option[FeaturesDaily] = {
     sync()
@@ -54,7 +52,8 @@ class OnlineSyncPipeline(
 
     // Read recent features from Iceberg
     val cutoffDate = date_sub(current_date(), config.hoursBack / 24)
-    val recentFeatures = platform.fetcher.readIcebergTable(spark, config.featuresTable)
+    val recentFeatures = platform.fetcher
+      .readIcebergTable(spark, config.featuresTable)
       .filter(col("day") >= cutoffDate)
       .orderBy(col("day").desc)
       .as[FeaturesDaily]
@@ -75,25 +74,25 @@ class OnlineSyncPipeline(
 
     // Convert to JSON and write to Redis
     val redis = new Jedis(config.redisConfig.host, config.redisConfig.port)
-    try {
+    try
       latestFeatures.collect().foreach { featuresDaily =>
         val userId = featuresDaily.user_id
-        val day = featuresDaily.day.toString
+        val day    = featuresDaily.day.toString
         val featuresJson = Map(
-          "day" -> day,
-          "event_count_7d" -> featuresDaily.event_count_7d.map(_.toString).getOrElse("null"),
+          "day"             -> day,
+          "event_count_7d"  -> featuresDaily.event_count_7d.map(_.toString).getOrElse("null"),
           "event_count_30d" -> featuresDaily.event_count_30d.map(_.toString).getOrElse("null"),
-          "last_event_days_ago" -> featuresDaily.last_event_days_ago.map(_.toString).getOrElse("null"),
+          "last_event_days_ago" -> featuresDaily.last_event_days_ago
+            .map(_.toString)
+            .getOrElse("null"),
           "event_type_counts" -> featuresDaily.event_type_counts.getOrElse("null")
         ).map { case (k, v) => s""""$k":$v""" }.mkString("{", ",", "}")
 
         val key = s"features:${userId}"
         redis.set(key, featuresJson)
       }
-    } finally {
+    finally
       redis.close()
-    }
   }
 
 }
-

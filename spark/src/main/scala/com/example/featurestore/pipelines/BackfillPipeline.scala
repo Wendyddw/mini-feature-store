@@ -1,10 +1,7 @@
 package com.example.featurestore.pipelines
 
 import com.example.featurestore.domain.Schemas
-import com.example.featurestore.types.{
-  BackfillPipelineConfig,
-  FeaturesDaily
-}
+import com.example.featurestore.types.{BackfillPipelineConfig, FeaturesDaily}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{Dataset, SparkSession}
 import platform.SparkPlatformTrait
@@ -12,28 +9,27 @@ import platform.SparkPlatformTrait
 /** Backfill pipeline: transforms events_raw → features_daily.
   *
   * Computes daily feature aggregations from raw events:
-  * - 7-day and 30-day event counts
-  * - Days since last event
-  * - Event type counts
+  *   - 7-day and 30-day event counts
+  *   - Days since last event
+  *   - Event type counts
   *
   * Data Transformation:
-  * 1. Read events_raw (user_id, event_type, ts)
-  * 2. Generate date range from startDate to endDate
-  * 3. Cross join distinct users × date range → ensures every (user, day) combination exists
-  * 4. Left join with events filtered by:
-  *    - Same user_id
-  *    - event_date <= feature day (point-in-time correctness, no data leakage)
-  *    - event_date >= feature day - 30 days (optimization: only last 30 days needed)
-  * 5. Group by (user_id, day) and aggregate:
-  *    - event_count_7d: Count events in last 7 days (inclusive)
-  *    - event_count_30d: Count events in last 30 days (inclusive)
-  *    - last_event_days_ago: Days since most recent event (0 if event on feature day)
-  *    - event_type_counts: Count of distinct event types in 30-day window
-  * 6. Write to Iceberg table partitioned by day
+  *   1. Read events_raw (user_id, event_type, ts) 2. Generate date range from startDate to endDate
+  *      3. Cross join distinct users × date range → ensures every (user, day) combination exists 4.
+  *      Left join with events filtered by:
+  *      - Same user_id
+  *      - event_date <= feature day (point-in-time correctness, no data leakage)
+  *      - event_date >= feature day - 30 days (optimization: only last 30 days needed)
+  *      5. Group by (user_id, day) and aggregate:
+  *      - event_count_7d: Count events in last 7 days (inclusive)
+  *      - event_count_30d: Count events in last 30 days (inclusive)
+  *      - last_event_days_ago: Days since most recent event (0 if event on feature day)
+  *      - event_type_counts: Count of distinct event types in 30-day window
+  *      6. Write to Iceberg table partitioned by day
   *
-  * Use cross join to ensure complete coverage: every user has a row for every day in the
-  * date range, even if they had no events. This is critical for point-in-time joins in
-  * downstream pipelines, which need features for all historical dates.
+  * Use cross join to ensure complete coverage: every user has a row for every day in the date
+  * range, even if they had no events. This is critical for point-in-time joins in downstream
+  * pipelines, which need features for all historical dates.
   *
   * Sample Data Transformation (startDate="2024-01-01", endDate="2024-01-05"):
   *
@@ -67,11 +63,10 @@ import platform.SparkPlatformTrait
   * user1   | 2024-01-04  | 2              | 2               | 1                   | 2
   * user1   | 2024-01-05  | 3              | 3               | 0                   | 2
   * }}}
-  *
   */
 class BackfillPipeline(
-    platform: SparkPlatformTrait,
-    config: BackfillPipelineConfig
+  platform: SparkPlatformTrait,
+  config: BackfillPipelineConfig
 ) {
 
   private val spark: SparkSession = platform.spark
@@ -80,7 +75,8 @@ class BackfillPipeline(
     *
     * Writes features to Iceberg table. Returns None as backfill doesn't return data.
     *
-    * @return None (pipeline writes to Iceberg table, no data returned)
+    * @return
+    *   None (pipeline writes to Iceberg table, no data returned)
     */
   def execute(): Option[FeaturesDaily] = {
     val features = run()
@@ -97,7 +93,8 @@ class BackfillPipeline(
     *
     * Internal implementation method.
     *
-    * @return Dataset[FeaturesDaily] with computed features
+    * @return
+    *   Dataset[FeaturesDaily] with computed features
     */
   private def run(): Dataset[FeaturesDaily] = {
     import spark.implicits._
@@ -118,7 +115,7 @@ class BackfillPipeline(
     """)
 
     // Cross join users with date range to get all (user_id, day) combinations
-    val users = eventsRaw.select("user_id").distinct()
+    val users    = eventsRaw.select("user_id").distinct()
     val userDays = users.crossJoin(dateRange)
 
     // Calculate features for each (user_id, day) combination
@@ -175,4 +172,3 @@ class BackfillPipeline(
   }
 
 }
-

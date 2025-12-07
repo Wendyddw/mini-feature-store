@@ -1,9 +1,6 @@
 package com.example.featurestore.pipelines
 
-import com.example.featurestore.types.{
-  BackfillPipelineConfig,
-  FeaturesDaily
-}
+import com.example.featurestore.types.{BackfillPipelineConfig, FeaturesDaily}
 import com.example.featurestore.suit.SparkTestBase
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
@@ -11,12 +8,11 @@ import org.scalatest.matchers.should.Matchers
 /** End-to-end test for BackfillPipeline.
   *
   * Tests the complete pipeline flow:
-  * 1. Arrange: Create test data (events_raw parquet)
-  * 2. Action: Execute BackfillPipeline
-  * 3. Assert: Compare expected vs actual results
+  *   1. Arrange: Create test data (events_raw parquet) 2. Action: Execute BackfillPipeline 3.
+  *      Assert: Compare expected vs actual results
   *
-  * This ensures complete coverage (every user has a row for every day) and
-  * correct rolling window calculations.
+  * This ensures complete coverage (every user has a row for every day) and correct rolling window
+  * calculations.
   */
 class TestBackfillPipeline extends AnyFunSuite with SparkTestBase with Matchers {
 
@@ -92,7 +88,7 @@ class TestBackfillPipeline extends AnyFunSuite with SparkTestBase with Matchers 
       endDate = "2024-01-05"
     )
     val pipeline = new BackfillPipeline(this.platform, config)
-    val result = pipeline.execute()
+    val result   = pipeline.execute()
 
     // ASSERT: Pipeline returns None (writes to table, doesn't return data)
     result should be(None)
@@ -118,11 +114,11 @@ class TestBackfillPipeline extends AnyFunSuite with SparkTestBase with Matchers 
 
     // Verify complete coverage: day 2 and day 4 have rows even though no events occurred on those days
     val day2 = actual.find(_.day.toString == "2024-01-02").get
-    day2.event_count_7d should be(Some(1L)) // Counts event from day 1
+    day2.event_count_7d should be(Some(1L))     // Counts event from day 1
     day2.last_event_days_ago should be(Some(1)) // Last event was 1 day ago
 
     val day4 = actual.find(_.day.toString == "2024-01-04").get
-    day4.event_count_7d should be(Some(2L)) // Counts events from day 1 and 3
+    day4.event_count_7d should be(Some(2L))     // Counts events from day 1 and 3
     day4.last_event_days_ago should be(Some(1)) // Last event was 1 day ago (day 3)
   }
 
@@ -149,7 +145,7 @@ class TestBackfillPipeline extends AnyFunSuite with SparkTestBase with Matchers 
       endDate = "2024-01-02"
     )
     val pipeline = new BackfillPipeline(this.platform, config)
-    val result = pipeline.execute()
+    val result   = pipeline.execute()
 
     // ASSERT: Pipeline returns None
     result should be(None)
@@ -169,7 +165,7 @@ class TestBackfillPipeline extends AnyFunSuite with SparkTestBase with Matchers 
     user1Day1.event_type_counts should be(Some("1"))
 
     val user1Day2 = actual.find(r => r.user_id == "user1" && r.day.toString == "2024-01-02").get
-    user1Day2.event_count_7d should be(Some(2L)) // Both events from day 1 and 2
+    user1Day2.event_count_7d should be(Some(2L))     // Both events from day 1 and 2
     user1Day2.event_type_counts should be(Some("2")) // Two distinct types: click, purchase
 
     // Verify user2 results
@@ -178,7 +174,7 @@ class TestBackfillPipeline extends AnyFunSuite with SparkTestBase with Matchers 
     user2Day1.event_type_counts should be(Some("1"))
 
     val user2Day2 = actual.find(r => r.user_id == "user2" && r.day.toString == "2024-01-02").get
-    user2Day2.event_count_7d should be(Some(2L)) // Both events from day 1 and 2
+    user2Day2.event_count_7d should be(Some(2L))     // Both events from day 1 and 2
     user2Day2.event_type_counts should be(Some("2")) // Two distinct types: view, click
   }
 
@@ -204,7 +200,7 @@ class TestBackfillPipeline extends AnyFunSuite with SparkTestBase with Matchers 
       endDate = "2024-01-10"
     )
     val pipeline = new BackfillPipeline(this.platform, config)
-    val result = pipeline.execute()
+    val result   = pipeline.execute()
 
     // ASSERT: Pipeline returns None
     result should be(None)
@@ -217,22 +213,25 @@ class TestBackfillPipeline extends AnyFunSuite with SparkTestBase with Matchers 
 
     // Verify day 8: should have 3 events in 7-day window (day 1, 5, and 8 all within 7 days), 3 events in 30-day window
     val day8 = actual.find(_.day.toString == "2024-01-08").get
-    day8.event_count_7d should be(Some(3L)) // All 3 events (day 1 is 7 days ago, day 5 is 3 days ago, day 8 is 0 days ago)
-    day8.event_count_30d should be(Some(3L)) // All 3 events (within 30 days)
+    day8.event_count_7d should be(
+      Some(3L)
+    ) // All 3 events (day 1 is 7 days ago, day 5 is 3 days ago, day 8 is 0 days ago)
+    day8.event_count_30d should be(Some(3L))    // All 3 events (within 30 days)
     day8.last_event_days_ago should be(Some(0)) // Event on same day
     day8.event_type_counts should be(Some("2")) // Two distinct types: click, purchase
 
     // Verify day 9: should have 2 events in 7-day window (day 5 and 8), 3 events in 30-day window
     val day9 = actual.find(_.day.toString == "2024-01-09").get
-    day9.event_count_7d should be(Some(2L)) // Events from day 5 (4 days ago) and day 8 (1 day ago)
+    day9.event_count_7d should be(Some(2L))  // Events from day 5 (4 days ago) and day 8 (1 day ago)
     day9.event_count_30d should be(Some(3L)) // All 3 events (within 30 days)
     day9.last_event_days_ago should be(Some(1)) // Last event was 1 day ago
 
     // Verify day 10: should have 2 events in 7-day window (day 5 and day 8), 3 events in 30-day window
     val day10 = actual.find(_.day.toString == "2024-01-10").get
-    day10.event_count_7d should be(Some(2L)) // Events from day 5 (5 days ago) and day 8 (2 days ago)
-    day10.event_count_30d should be(Some(3L)) // All 3 events (within 30 days)
+    day10.event_count_7d should be(
+      Some(2L)
+    ) // Events from day 5 (5 days ago) and day 8 (2 days ago)
+    day10.event_count_30d should be(Some(3L))    // All 3 events (within 30 days)
     day10.last_event_days_ago should be(Some(2)) // Last event was 2 days ago
   }
 }
-

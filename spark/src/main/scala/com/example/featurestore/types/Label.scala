@@ -7,8 +7,7 @@ import java.sql.Timestamp
   * Represents a training label with user_id, label value, and point-in-time timestamp.
   */
 case class Label(
-    user_id: String,
-    label: Double,
-    as_of_ts: Timestamp
+  user_id: String,
+  label: Double,
+  as_of_ts: Timestamp
 )
-

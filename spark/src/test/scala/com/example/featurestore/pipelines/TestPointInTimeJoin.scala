@@ -1,9 +1,6 @@
 package com.example.featurestore.pipelines
 
-import com.example.featurestore.types.{
-  PointInTimeJoinPipelineConfig,
-  TrainingData
-}
+import com.example.featurestore.types.{PointInTimeJoinPipelineConfig, TrainingData}
 import com.example.featurestore.suit.SparkTestBase
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
@@ -11,9 +8,8 @@ import org.scalatest.matchers.should.Matchers
 /** End-to-end test for PointInTimeJoinPipeline.
   *
   * Tests the complete pipeline flow:
-  * 1. Arrange: Create test data (features table and labels parquet)
-  * 2. Action: Execute PointInTimeJoinPipeline
-  * 3. Assert: Compare expected vs actual results
+  *   1. Arrange: Create test data (features table and labels parquet) 2. Action: Execute
+  *      PointInTimeJoinPipeline 3. Assert: Compare expected vs actual results
   *
   * This ensures no data leakage - labels at time T only use features from time <= T.
   */
@@ -29,7 +25,14 @@ class TestPointInTimeJoin extends AnyFunSuite with SparkTestBase with Matchers {
       ("user1", java.sql.Date.valueOf("2024-01-01"), 1L, 1L, 0, "1"),
       ("user1", java.sql.Date.valueOf("2024-01-02"), 2L, 2L, 0, "2"),
       ("user1", java.sql.Date.valueOf("2024-01-03"), 3L, 3L, 0, "3")
-    ).toDF("user_id", "day", "event_count_7d", "event_count_30d", "last_event_days_ago", "event_type_counts")
+    ).toDF(
+      "user_id",
+      "day",
+      "event_count_7d",
+      "event_count_30d",
+      "last_event_days_ago",
+      "event_type_counts"
+    )
 
     // Create labels with as_of_ts on day 2
     // This label should ONLY use features from day 1 or day 2, NOT day 3
@@ -62,7 +65,7 @@ class TestPointInTimeJoin extends AnyFunSuite with SparkTestBase with Matchers {
       outputPath = "test/training_data"
     )
     val pipeline = new PointInTimeJoinPipeline(this.platform, config)
-    val result = pipeline.execute()
+    val result   = pipeline.execute()
 
     // ASSERT: Compare expected vs actual
     result should be(defined)
@@ -89,11 +92,11 @@ class TestPointInTimeJoin extends AnyFunSuite with SparkTestBase with Matchers {
     // Specifically verify it's day 2, not day 3
     actualResult.day should be(asOfDate)
     actualResult.day.toString should be("2024-01-02")
-    actualResult.day.toString should not be("2024-01-03")
+    actualResult.day.toString should not be "2024-01-03"
 
     // Verify event_count_7d is 2 (from day 2), not 3 (from day 3)
     actualResult.event_count_7d should be(Some(2L))
-    actualResult.event_count_7d should not be(Some(3L))
+    actualResult.event_count_7d should not be (Some(3L))
 
     // Verify output was written
     val outputData = testFetcher.getStoredData("test/training_data")
@@ -112,7 +115,14 @@ class TestPointInTimeJoin extends AnyFunSuite with SparkTestBase with Matchers {
       ("user1", java.sql.Date.valueOf("2024-01-02"), 2L, 2L, 0, "2"),
       ("user2", java.sql.Date.valueOf("2024-01-01"), 5L, 5L, 0, "5"),
       ("user2", java.sql.Date.valueOf("2024-01-02"), 10L, 10L, 0, "10")
-    ).toDF("user_id", "day", "event_count_7d", "event_count_30d", "last_event_days_ago", "event_type_counts")
+    ).toDF(
+      "user_id",
+      "day",
+      "event_count_7d",
+      "event_count_30d",
+      "last_event_days_ago",
+      "event_type_counts"
+    )
 
     // Create labels at different times
     val labels = Seq(
@@ -155,7 +165,7 @@ class TestPointInTimeJoin extends AnyFunSuite with SparkTestBase with Matchers {
       outputPath = "test/training_data"
     )
     val pipeline = new PointInTimeJoinPipeline(this.platform, config)
-    val result = pipeline.execute()
+    val result   = pipeline.execute()
 
     // ASSERT: Compare expected vs actual
     result should be(defined)

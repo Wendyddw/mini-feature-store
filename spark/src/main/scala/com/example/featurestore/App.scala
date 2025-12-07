@@ -16,9 +16,9 @@ import platform.PlatformProvider
 /** Main application entry point for feature store pipelines.
   *
   * Supports three pipeline modes:
-  * - backfill: events_raw → features_daily
-  * - point-in-time-join: labels + features_daily → training_data
-  * - online-sync: features_daily → Redis
+  *   - backfill: events_raw → features_daily
+  *   - point-in-time-join: labels + features_daily → training_data
+  *   - online-sync: features_daily → Redis
   *
   * Usage:
   * {{{
@@ -49,12 +49,12 @@ object App {
       appName = s"feature-store-${args(0)}",
       config = Map(
         "spark.sql.extensions" -> "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions",
-        "spark.sql.catalog.spark_catalog" -> "org.apache.iceberg.spark.SparkSessionCatalog",
+        "spark.sql.catalog.spark_catalog"      -> "org.apache.iceberg.spark.SparkSessionCatalog",
         "spark.sql.catalog.spark_catalog.type" -> "hive"
       )
     )
 
-    try {
+    try
       args(0) match {
         case "backfill" =>
           val options = parseArgs(args.tail)
@@ -94,18 +94,15 @@ object App {
           println(s"Unknown pipeline: ${args(0)}")
           System.exit(1)
       }
-    } finally {
+    finally
       platform.stop()
-    }
   }
 
-  private def parseArgs(args: Array[String]): Map[String, String] = {
+  private def parseArgs(args: Array[String]): Map[String, String] =
     args
       .sliding(2, 2)
       .map { case Array(key, value) =>
         key.stripPrefix("--") -> value
       }
       .toMap
-  }
 }
-

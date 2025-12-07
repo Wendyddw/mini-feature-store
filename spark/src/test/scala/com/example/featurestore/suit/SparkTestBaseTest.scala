@@ -15,7 +15,7 @@ class SparkTestBaseTest extends AnyFunSuite with SparkTestBase with Matchers {
     val sparkSession = spark
     import sparkSession.implicits._
 
-    val data = Seq(("Alice", 30), ("Bob", 25), ("Charlie", 35))
+    val data          = Seq(("Alice", 30), ("Bob", 25), ("Charlie", 35))
     val df: DataFrame = data.toDF("name", "age")
 
     df.count() should be(3)
@@ -28,11 +28,10 @@ class SparkTestBaseTest extends AnyFunSuite with SparkTestBase with Matchers {
     import sparkSession.implicits._
 
     val data = Seq(1, 2, 3, 4, 5)
-    val df = data.toDF("value")
+    val df   = data.toDF("value")
 
     val result = df.filter($"value" > 2)
 
     result.count() should be(3)
   }
 }
-

@@ -7,8 +7,7 @@ import java.sql.Timestamp
   * Represents a single event with user_id, event_type, and timestamp.
   */
 case class EventRaw(
-    user_id: String,
-    event_type: String,
-    ts: Timestamp
+  user_id: String,
+  event_type: String,
+  ts: Timestamp
 )
-

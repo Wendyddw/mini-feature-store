@@ -4,8 +4,8 @@ import org.apache.spark.sql.DataFrame
 
 /** Production implementation of Writers trait.
   *
-  * Writes DataFrames to real storage systems (Parquet, JSON, CSV, Iceberg tables).
-  * This is the default writer used in production environments.
+  * Writes DataFrames to real storage systems (Parquet, JSON, CSV, Iceberg tables). This is the
+  * default writer used in production environments.
   *
   * Common use patterns:
   * {{{
@@ -21,10 +21,10 @@ import org.apache.spark.sql.DataFrame
 class ProdWriter extends Writers {
 
   override def writeParquet(
-      df: DataFrame,
-      path: String,
-      mode: String = "overwrite",
-      partitionBy: Seq[String] = Seq.empty
+    df: DataFrame,
+    path: String,
+    mode: String = "overwrite",
+    partitionBy: Seq[String] = Seq.empty
   ): Unit = {
     val writer = df.write.mode(mode)
     if (partitionBy.nonEmpty) {
@@ -35,31 +35,29 @@ class ProdWriter extends Writers {
   }
 
   override def writeJson(
-      df: DataFrame,
-      path: String,
-      mode: String = "overwrite"
-  ): Unit = {
+    df: DataFrame,
+    path: String,
+    mode: String = "overwrite"
+  ): Unit =
     df.write.mode(mode).json(path)
-  }
 
   override def writeCsv(
-      df: DataFrame,
-      path: String,
-      mode: String = "overwrite",
-      header: Boolean = true,
-      delimiter: String = ","
-  ): Unit = {
+    df: DataFrame,
+    path: String,
+    mode: String = "overwrite",
+    header: Boolean = true,
+    delimiter: String = ","
+  ): Unit =
     df.write
       .mode(mode)
       .option("header", header)
       .option("delimiter", delimiter)
       .csv(path)
-  }
 
   override def insertOverwriteIcebergTable(
-      df: DataFrame,
-      tableName: String,
-      partitionBy: Seq[String] = Seq.empty
+    df: DataFrame,
+    tableName: String,
+    partitionBy: Seq[String] = Seq.empty
   ): Unit = {
     val writer = df.write
       .format("iceberg")
@@ -71,4 +69,3 @@ class ProdWriter extends Writers {
     }
   }
 }
-

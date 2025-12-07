@@ -4,9 +4,8 @@ import org.apache.spark.sql.SparkSession
 
 /** Concrete implementation of SparkPlatformTrait.
   *
-  * Encapsulates a SparkSession, Fetcher, and Writer together, providing a unified
-  * platform for data processing operations. The platform manages the lifecycle
-  * of the Spark session.
+  * Encapsulates a SparkSession, Fetcher, and Writer together, providing a unified platform for data
+  * processing operations. The platform manages the lifecycle of the Spark session.
   *
   * Common use patterns:
   * {{{
@@ -24,24 +23,27 @@ import org.apache.spark.sql.SparkSession
   *   platform.stop()
   * }}}
   *
-  * @param spark The SparkSession instance for data processing
-  * @param fetcher The Fetchers implementation for data input operations
-  * @param writer The Writers implementation for data output operations
+  * @param spark
+  *   The SparkSession instance for data processing
+  * @param fetcher
+  *   The Fetchers implementation for data input operations
+  * @param writer
+  *   The Writers implementation for data output operations
   */
 class SparkPlatform(
-    val spark: SparkSession,
-    val fetcher: Fetchers,
-    val writer: Writers
+  val spark: SparkSession,
+  val fetcher: Fetchers,
+  val writer: Writers
 ) extends SparkPlatformTrait {
 
   /** Stops the Spark session and releases resources.
     *
-    * Always call this method when you're done with the platform to ensure
-    * proper cleanup of Spark resources. In production, this is typically
-    * done in a finally block or using resource management.
+    * Always call this method when you're done with the platform to ensure proper cleanup of Spark
+    * resources. In production, this is typically done in a finally block or using resource
+    * management.
     *
     * @example
-    * {{{
+    *   {{{
     *   val platform = PlatformProvider.createLocal("my-app")
     *   try {
     *     // Your processing logic
@@ -50,10 +52,8 @@ class SparkPlatform(
     *   } finally {
     *     platform.stop()
     *   }
-    * }}}
+    *   }}}
     */
-  def stop(): Unit = {
+  def stop(): Unit =
     spark.stop()
-  }
 }
-

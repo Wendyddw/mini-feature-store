@@ -10,7 +10,7 @@ class TestWriterTest extends AnyFunSuite with SparkTestBase with Matchers {
     import sparkSession.implicits._
 
     val data = Seq(("Alice", 30), ("Bob", 25))
-    val df = data.toDF("name", "age")
+    val df   = data.toDF("name", "age")
 
     testWriter.writeParquet(df, "test/path/data.parquet")
 
@@ -26,7 +26,7 @@ class TestWriterTest extends AnyFunSuite with SparkTestBase with Matchers {
     import sparkSession.implicits._
 
     val data = Seq(("item1", 10), ("item2", 20))
-    val df = data.toDF("item", "value")
+    val df   = data.toDF("item", "value")
 
     testWriter.writeJson(df, "test/json/data.json")
 
@@ -40,7 +40,7 @@ class TestWriterTest extends AnyFunSuite with SparkTestBase with Matchers {
     import sparkSession.implicits._
 
     val data = Seq(("A", 1), ("B", 2), ("C", 3))
-    val df = data.toDF("letter", "number")
+    val df   = data.toDF("letter", "number")
 
     testWriter.writeCsv(df, "test/csv/data.csv", header = true)
 
@@ -54,7 +54,7 @@ class TestWriterTest extends AnyFunSuite with SparkTestBase with Matchers {
     import sparkSession.implicits._
 
     val data = Seq(("user1", "feature1", 0.5), ("user2", "feature2", 0.8))
-    val df = data.toDF("user_id", "feature_name", "value")
+    val df   = data.toDF("user_id", "feature_name", "value")
 
     testWriter.insertOverwriteIcebergTable(df, "test_db.feature_table")
 
@@ -98,4 +98,3 @@ class TestWriterTest extends AnyFunSuite with SparkTestBase with Matchers {
     testWriter.getAllStoredKeys should be(empty)
   }
 }
-

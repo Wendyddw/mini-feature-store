@@ -4,9 +4,9 @@ import org.apache.spark.sql.SparkSession
 
 /** Trait defining the interface for Spark platform implementations.
   *
-  * Provides abstraction over platform creation, allowing different implementations
-  * (e.g., SparkPlatform for production, MockPlatform for testing) while maintaining
-  * a consistent interface.
+  * Provides abstraction over platform creation, allowing different implementations (e.g.,
+  * SparkPlatform for production, MockPlatform for testing) while maintaining a consistent
+  * interface.
   *
   * Common use patterns:
   * {{{
@@ -26,6 +26,7 @@ import org.apache.spark.sql.SparkSession
   * }}}
   */
 trait SparkPlatformTrait {
+
   /** The SparkSession for data processing operations */
   val spark: SparkSession
 
@@ -38,4 +39,3 @@ trait SparkPlatformTrait {
   /** Stops the platform and releases all resources */
   def stop(): Unit
 }
-

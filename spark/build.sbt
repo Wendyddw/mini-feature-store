@@ -2,6 +2,10 @@ ThisBuild / scalaVersion := "2.13.12"
 ThisBuild / version := "0.1.0-SNAPSHOT"
 ThisBuild / organization := "com.example"
 
+// Enable semanticdb for scalafix
+ThisBuild / semanticdbEnabled := true
+ThisBuild / semanticdbVersion := "4.8.11"
+
 val sparkVersion = "3.5.0"
 val icebergVersion = "1.4.2"
 val redisVersion = "4.0.1"
