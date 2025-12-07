@@ -19,23 +19,25 @@ graph TB
 
     subgraph "Storage"
         FD[features_daily<br/>Data Lakehouse: Iceberg<br/>Partitioned by day]
-        TD[training_data<br/>Parquet<br/>Joined labels + features]
         R[(Redis<br/>Online Store)]
     end
 
     subgraph "Serving"
-        API[FastAPI<br/>Feature Serving API<br/>Online: /features/online<br/>Offline: /features/offline]
+        API[FastAPI<br/>Online Feature API<br/>/features/online]
+    end
+
+    subgraph "Training & Batch"
+        TD[training_data<br/>Parquet<br/>Joined labels + features]
     end
 
     ER --> BP
     BP --> FD
     L --> PITJ
-    FD --> PITJ
+    FD -->|Programmatic Access<br/>Spark/SQL| PITJ
     PITJ --> TD
     FD --> OS
     OS --> R
-    R -->|Online Serving| API
-    FD -->|Offline Serving| API
+    R -->|Real-time Inference| API
 
     style ER fill:#e1f5ff
     style L fill:#e1f5ff
@@ -72,9 +74,10 @@ Historical feature computation from events_raw to features_daily.
 Online sync keeps Redis updated with latest 24h of features.
 
 ### ✅ Feature Serving API
-RESTful API with separate endpoints for:
-- **Online**: Latest features from Redis (`/features/online/{user_id}`)
-- **Offline**: Historical features from Iceberg (`/features/offline/{user_id}?as_of=<timestamp>`)
+RESTful API for **online feature serving only**:
+- **Online**: Latest features from Redis (`/features/online/{user_id}`) - for real-time inference
+
+**Offline Features**: Accessed programmatically via Spark/SQL (see examples below), not via REST API.
 
 ## Project Structure
 
@@ -88,10 +91,10 @@ mini-feature-store/
 │   │       ├── pipelines/    # Backfill, PIT join, online sync
 │   │       └── App.scala    # Main entry point
 │   └── src/test/scala/       # Tests including data leakage validation
-├── api/                       # FastAPI service
+├── api/                       # FastAPI service (online serving only)
 │   ├── main.py              # FastAPI app setup
-│   ├── online.py            # Online feature serving (Redis)
-│   ├── offline.py           # Offline feature serving (Iceberg)
+│   ├── online.py            # Online feature serving (Redis) - production
+│   ├── offline.py           # Offline endpoint (development/debugging only)
 │   ├── models.py            # Shared Pydantic models
 │   └── requirements.txt
 ├── docker/                   # Docker Compose setup
@@ -158,9 +161,13 @@ cd spark && sbt "runMain com.example.featurestore.App online-sync \
   --redis-port 6379"
 ```
 
-## API Usage
+## Feature Access Patterns
 
-### Online Serving (Latest Features)
+### Online Serving (Real-time Inference)
+
+**Use Case**: Low-latency feature retrieval for production model serving.
+
+**Access Method**: REST API
 
 ```bash
 # Get latest features for a user (from Redis)
@@ -183,28 +190,116 @@ Response:
 }
 ```
 
-### Offline Serving (Historical Features)
+**Production Pattern**: ✅ This matches real-world use cases - online features are served via API for real-time inference.
 
-```bash
-# Get features at a specific point in time (from Iceberg)
-curl "http://localhost:8000/features/offline/user1?as_of=2024-01-05T12:00:00"
+### Offline Access (Training & Batch Jobs)
+
+**Use Case**: Historical feature retrieval for training data generation and batch inference.
+
+**Access Method**: Programmatic access via Spark/SQL (production pattern)
+
+#### Example 1: Training Data Generation (Point-in-Time Join)
+
+The Point-in-Time Join pipeline demonstrates the correct pattern:
+
+```scala
+import org.apache.spark.sql.functions._
+
+// Read features from Iceberg table
+val features = spark.read
+  .format("iceberg")
+  .table("feature_store.features_daily")
+  .withColumn("feature_date", col("day"))
+
+// Read labels
+val labels = spark.read
+  .parquet("file:///tmp/labels")
+  .withColumn("as_of_date", to_date(col("as_of_ts")))
+
+// Point-in-time join: feature_day <= as_of_ts_day
+val trainingData = labels
+  .join(
+    features,
+    labels("user_id") === features("user_id") &&
+      features("feature_date") <= labels("as_of_date"),
+    "left"
+  )
+  .withColumn(
+    "rank",
+    row_number().over(
+      Window
+        .partitionBy("user_id", "as_of_ts")
+        .orderBy(col("feature_date").desc)
+    )
+  )
+  .filter(col("rank") === 1)
+  .select("user_id", "label", "as_of_ts", "day", "event_count_7d", ...)
+
+// Write training data
+trainingData.write.parquet("file:///tmp/training_data")
 ```
 
-Response:
-```json
-{
-  "user_id": "user1",
-  "as_of": "2024-01-05T12:00:00",
-  "features": {
-    "day": "2024-01-05",
-    "event_count_7d": 3,
-    "event_count_30d": 8,
-    "last_event_days_ago": 1,
-    "event_type_counts": "2"
-  },
-  "source": "offline"
-}
+#### Example 2: Batch Inference
+
+```scala
+// Read features for batch inference
+val inferenceUsers = spark.read.parquet("file:///tmp/inference_users")
+val as_of_date = "2024-01-05"
+
+val features = spark.read
+  .format("iceberg")
+  .table("feature_store.features_daily")
+  .filter(col("day") <= as_of_date)
+
+// Get latest features per user
+val latestFeatures = features
+  .withColumn(
+    "rank",
+    row_number().over(
+      Window
+        .partitionBy("user_id")
+        .orderBy(col("day").desc)
+    )
+  )
+  .filter(col("rank") === 1)
+  .drop("rank")
+
+// Join with inference users
+val inferenceData = inferenceUsers
+  .join(latestFeatures, Seq("user_id"), "left")
+
+// Run batch inference
+// ... (use inferenceData with your model)
 ```
+
+#### Example 3: Direct SQL Query
+
+```sql
+-- Query features for a specific user at a point in time
+SELECT user_id, day, event_count_7d, event_count_30d
+FROM feature_store.features_daily
+WHERE user_id = 'user1'
+  AND day <= '2024-01-05'
+ORDER BY day DESC
+LIMIT 1;
+```
+
+**Production Pattern**: ✅ Offline features are accessed programmatically via Spark/SQL for:
+- Training data generation (Point-in-Time Join pipeline)
+- Batch inference jobs
+- Analytics and reporting
+- NOT via REST API
+
+**Note**: A development/debugging endpoint exists at `/features/offline/{user_id}` for convenience during development, but should not be used in production.
+
+### Training Data Storage
+
+Training data (joined labels + features) is stored in Parquet format and consumed by training jobs:
+
+- **Location**: `file:///tmp/training_data` (or S3 path in production)
+- **Format**: Parquet (partitioned by `as_of_ts`)
+- **Access**: Read by ML training frameworks (not served via API)
+- **Generated by**: Point-in-Time Join pipeline
 
 ## Data Schemas
 

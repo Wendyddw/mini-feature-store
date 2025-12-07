@@ -1,6 +1,16 @@
-"""Offline feature serving module.
+"""Offline feature access module (DEVELOPMENT/DEBUGGING ONLY).
 
-Handles historical feature retrieval from Iceberg for training and batch inference.
+This endpoint is provided for development, debugging, and exploration purposes.
+
+In production feature stores, offline features should be accessed programmatically
+via Spark/SQL for training data generation and batch inference, NOT via REST API.
+
+For production use, access offline features via:
+- Spark/SQL queries (see README for examples)
+- Point-in-Time Join pipeline for training data generation
+- Batch inference jobs using Spark
+
+This REST endpoint is provided for convenience during development and debugging.
 """
 from datetime import datetime
 
@@ -9,7 +19,10 @@ from pyiceberg.catalog import load_catalog
 
 from models import FeatureResponse
 
-router = APIRouter(prefix="/features/offline", tags=["offline"])
+router = APIRouter(
+    prefix="/features/offline",
+    tags=["offline", "development", "debugging"]
+)
 
 # Iceberg catalog for offline serving
 catalog = load_catalog(
@@ -27,11 +40,12 @@ async def get_offline_features(
     user_id: str,
     as_of: str = Query(..., description="Timestamp for point-in-time query (ISO format)")
 ):
-    """Get historical features for a user from Iceberg (offline serving).
+    """Get historical features for a user from Iceberg (DEVELOPMENT/DEBUGGING ONLY).
 
-    This endpoint provides point-in-time feature retrieval from the Iceberg
-    data lake. Use this for training data generation, batch inference, and
-    historical analysis.
+    This endpoint is provided for development, debugging, and exploration purposes.
+
+    In production, offline features should be accessed programmatically via Spark/SQL.
+    See README for examples of proper offline feature access patterns.
 
     Args:
         user_id: User ID to get features for

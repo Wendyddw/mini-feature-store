@@ -49,9 +49,11 @@ demo: setup build ## Run full demo: setup, build, backfill, point-in-time join, 
 	@echo ""
 	@echo "6. API is running at http://localhost:8000"
 	@echo ""
-	@echo "Try these commands:"
+	@echo "Try online feature serving:"
 	@echo "  curl 'http://localhost:8000/features/online/user1'"
-	@echo "  curl 'http://localhost:8000/features/offline/user1?as_of=2024-01-05T12:00:00'"
+	@echo ""
+	@echo "Note: Offline features should be accessed via Spark/SQL (see README)"
+	@echo "      A development/debugging endpoint exists for convenience."
 	@echo ""
 	@echo "=== Demo Complete ==="
 
