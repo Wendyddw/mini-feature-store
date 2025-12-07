@@ -61,23 +61,13 @@ graph TB
 
 ## Features
 
-### ✅ Point-in-Time Joins
-Ensures no data leakage: labels at time T only use features from time ≤ T.
+- **Point-in-Time Joins**: Prevents data leakage by ensuring labels at time T only use features from time ≤ T
+- **Offline/Online Parity**: Same features available in both Iceberg (offline) and Redis (online)
+- **Backfills**: Historical feature computation from events_raw to features_daily
+- **Freshness Tracking**: Online sync keeps Redis updated with latest 24h of features
+- **Feature Serving API**: RESTful API for online feature serving (`/features/online/{user_id}`) for real-time inference
 
-### ✅ Offline/Online Parity
-Same features available in both Iceberg (offline) and Redis (online).
-
-### ✅ Backfills
-Historical feature computation from events_raw to features_daily.
-
-### ✅ Freshness Tracking
-Online sync keeps Redis updated with latest 24h of features.
-
-### ✅ Feature Serving API
-RESTful API for **online feature serving only**:
-- **Online**: Latest features from Redis (`/features/online/{user_id}`) - for real-time inference
-
-**Offline Features**: Accessed programmatically via Spark/SQL (see examples below), not via REST API.
+**Note**: Offline features are accessed programmatically via Spark/SQL (see examples below), not via REST API.
 
 ## Project Structure
 
@@ -111,50 +101,42 @@ mini-feature-store/
 - Docker and Docker Compose
 - Java 17+
 - SBT 1.9.6+
-- Python 3.11+ (for API and scripts)
+- Python 3.11+
 
 ### Run Full Demo
 
 ```bash
-# One command to run everything
 make demo
 ```
 
-This will:
-1. Start Docker services (MinIO, Redis, API)
-2. Generate sample data
-3. Run backfill pipeline
-4. Run point-in-time join
-5. Sync features to Redis
-6. Start API server
+This starts Docker services, generates sample data, runs all pipelines, and starts the API server.
 
 ### Manual Steps
 
 ```bash
-# 1. Setup infrastructure
-make setup
-make docker-up
+# Setup infrastructure
+make setup && make docker-up
 
-# 2. Generate sample data
+# Generate sample data
 python scripts/generate_sample_data.py
 
-# 3. Build Spark JAR
+# Build Spark JAR
 make build
 
-# 4. Run backfill pipeline
+# Run backfill pipeline
 cd spark && sbt "runMain com.example.featurestore.App backfill \
   --events-raw-path file:///tmp/events_raw \
   --output-table feature_store.features_daily \
   --start-date 2024-01-01 \
   --end-date 2024-01-07"
 
-# 5. Run point-in-time join
+# Run point-in-time join
 cd spark && sbt "runMain com.example.featurestore.App point-in-time-join \
   --labels-path file:///tmp/labels \
   --features-table feature_store.features_daily \
   --output-path file:///tmp/training_data"
 
-# 6. Sync to Redis
+# Sync to Redis
 cd spark && sbt "runMain com.example.featurestore.App online-sync \
   --features-table feature_store.features_daily \
   --redis-host localhost \
@@ -165,12 +147,9 @@ cd spark && sbt "runMain com.example.featurestore.App online-sync \
 
 ### Online Serving (Real-time Inference)
 
-**Use Case**: Low-latency feature retrieval for production model serving.
-
-**Access Method**: REST API
+Low-latency feature retrieval for production model serving via REST API:
 
 ```bash
-# Get latest features for a user (from Redis)
 curl "http://localhost:8000/features/online/user1"
 ```
 
@@ -190,17 +169,11 @@ Response:
 }
 ```
 
-**Production Pattern**: ✅ This matches real-world use cases - online features are served via API for real-time inference.
-
 ### Offline Access (Training & Batch Jobs)
 
-**Use Case**: Historical feature retrieval for training data generation and batch inference.
-
-**Access Method**: Programmatic access via Spark/SQL (production pattern)
+Historical feature retrieval for training data generation and batch inference via Spark/SQL:
 
 #### Example 1: Training Data Generation (Point-in-Time Join)
-
-The Point-in-Time Join pipeline demonstrates the correct pattern:
 
 ```scala
 import org.apache.spark.sql.functions._
@@ -235,14 +208,12 @@ val trainingData = labels
   .filter(col("rank") === 1)
   .select("user_id", "label", "as_of_ts", "day", "event_count_7d", ...)
 
-// Write training data
 trainingData.write.parquet("file:///tmp/training_data")
 ```
 
 #### Example 2: Batch Inference
 
 ```scala
-// Read features for batch inference
 val inferenceUsers = spark.read.parquet("file:///tmp/inference_users")
 val as_of_date = "2024-01-05"
 
@@ -251,54 +222,33 @@ val features = spark.read
   .table("feature_store.features_daily")
   .filter(col("day") <= as_of_date)
 
-// Get latest features per user
 val latestFeatures = features
-  .withColumn(
-    "rank",
-    row_number().over(
-      Window
-        .partitionBy("user_id")
-        .orderBy(col("day").desc)
-    )
-  )
+  .withColumn("rank", row_number().over(
+    Window.partitionBy("user_id").orderBy(col("day").desc)
+  ))
   .filter(col("rank") === 1)
   .drop("rank")
 
-// Join with inference users
-val inferenceData = inferenceUsers
-  .join(latestFeatures, Seq("user_id"), "left")
-
-// Run batch inference
-// ... (use inferenceData with your model)
+val inferenceData = inferenceUsers.join(latestFeatures, Seq("user_id"), "left")
 ```
 
 #### Example 3: Direct SQL Query
 
 ```sql
--- Query features for a specific user at a point in time
 SELECT user_id, day, event_count_7d, event_count_30d
 FROM feature_store.features_daily
-WHERE user_id = 'user1'
-  AND day <= '2024-01-05'
+WHERE user_id = 'user1' AND day <= '2024-01-05'
 ORDER BY day DESC
 LIMIT 1;
 ```
 
-**Production Pattern**: ✅ Offline features are accessed programmatically via Spark/SQL for:
-- Training data generation (Point-in-Time Join pipeline)
-- Batch inference jobs
-- Analytics and reporting
-- NOT via REST API
-
-**Note**: A development/debugging endpoint exists at `/features/offline/{user_id}` for convenience during development, but should not be used in production.
+**Note**: A development/debugging endpoint exists at `/features/offline/{user_id}` for convenience, but should not be used in production.
 
 ### Training Data Storage
 
-Training data (joined labels + features) is stored in Parquet format and consumed by training jobs:
-
+Training data (joined labels + features) is stored in Parquet format:
 - **Location**: `file:///tmp/training_data` (or S3 path in production)
 - **Format**: Parquet (partitioned by `as_of_ts`)
-- **Access**: Read by ML training frameworks (not served via API)
 - **Generated by**: Point-in-Time Join pipeline
 
 ## Data Schemas
@@ -323,85 +273,38 @@ Training data (joined labels + features) is stored in Parquet format and consume
 
 ## Pipelines
 
-### Backfill Pipeline
-Computes daily features from events_raw:
-- Aggregates events into rolling windows (7d, 30d)
-- Computes recency features
-- Outputs to Iceberg table partitioned by day
-
-### Point-in-Time Join Pipeline
-Joins labels with features ensuring no data leakage:
-- Filters features where `feature_day <= as_of_ts_day`
-- Selects latest feature snapshot per label
-- Outputs training-ready dataset
-
-### Online Sync Pipeline
-Syncs recent features to Redis:
-- Reads last 24h from features_daily
-- Gets latest feature per user
-- Writes to Redis keyed by `features:{user_id}`
+- **Backfill Pipeline**: Computes daily features from events_raw with rolling windows (7d, 30d) and recency features. Outputs to Iceberg table partitioned by day.
+- **Point-in-Time Join Pipeline**: Joins labels with features ensuring no data leakage (`feature_day <= as_of_ts_day`). Selects latest feature snapshot per label and outputs training-ready dataset.
+- **Online Sync Pipeline**: Syncs last 24h of features from features_daily to Redis, keyed by `features:{user_id}`.
 
 ## Testing
-
-### Run Tests
 
 ```bash
 cd spark && sbt test
 ```
 
-### Test Architecture
-
 The test framework uses in-memory storage for fast, isolated tests:
-- **TestFetcher**: Reads from in-memory storage (dictionary-based)
-- **TestWriter**: Writes to in-memory storage
-- **E2E Tests**: Follow Arrange-Action-Assert pattern for comprehensive testing
-- All data operations happen in memory without actual I/O
-
-### Data Leakage Validation
-
-The `DataLeakageTest` ensures point-in-time joins work correctly:
-- Verifies labels at time T only use features ≤ T
-- Tests multiple users and timestamps
-- Validates no future information leakage
+- **TestFetcher/TestWriter**: In-memory storage (dictionary-based)
+- **E2E Tests**: Follow Arrange-Action-Assert pattern
+- **Data Leakage Validation**: Ensures point-in-time joins work correctly (labels at time T only use features ≤ T)
 
 ## Key Concepts
 
-### Point-in-Time Joins
-Critical for ML training: features must only use information available at the label timestamp. Our implementation:
-- Joins on `feature_day <= as_of_ts_day`
-- Selects latest feature snapshot
-- Prevents future information leakage
-
-### Offline/Online Parity
-Same features available in both:
-- **Offline (Iceberg)**: Full historical data, point-in-time queries
-- **Online (Redis)**: Latest features, low-latency serving
-
-### Backfills
-Historical feature computation:
-- Processes date ranges
-- Handles missing data gracefully
-- Supports incremental updates
+- **Point-in-Time Joins**: Critical for ML training - features only use information available at label timestamp. Joins on `feature_day <= as_of_ts_day` and selects latest feature snapshot.
+- **Offline/Online Parity**: Same features in both Iceberg (full historical data, point-in-time queries) and Redis (latest features, low-latency serving).
+- **Backfills**: Historical feature computation with date range processing, graceful missing data handling, and incremental updates.
 
 ## Development
 
-### Build
-
 ```bash
+# Build
 cd spark && sbt assembly
-```
 
-### Run Individual Pipelines
+# API Development
+cd api && pip install -r requirements.txt && uvicorn main:app --reload
+```
 
 See `spark/src/main/scala/com/example/featurestore/App.scala` for pipeline options.
-
-### API Development
-
-```bash
-cd api
-pip install -r requirements.txt
-uvicorn main:app --reload
-```
 
 ## Docker Services
 
