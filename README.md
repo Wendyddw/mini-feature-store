@@ -72,9 +72,9 @@ Historical feature computation from events_raw to features_daily.
 Online sync keeps Redis updated with latest 24h of features.
 
 ### ✅ Feature Serving API
-RESTful API supporting both:
-- **Online**: Latest features from Redis (no `as_of` parameter)
-- **Offline**: Historical features from Iceberg (with `as_of` parameter)
+RESTful API with separate endpoints for:
+- **Online**: Latest features from Redis (`/features/online/{user_id}`)
+- **Offline**: Historical features from Iceberg (`/features/offline/{user_id}?as_of=<timestamp>`)
 
 ## Project Structure
 
@@ -89,7 +89,10 @@ mini-feature-store/
 │   │       └── App.scala    # Main entry point
 │   └── src/test/scala/       # Tests including data leakage validation
 ├── api/                       # FastAPI service
-│   ├── main.py              # Feature serving API
+│   ├── main.py              # FastAPI app setup
+│   ├── online.py            # Online feature serving (Redis)
+│   ├── offline.py           # Offline feature serving (Iceberg)
+│   ├── models.py            # Shared Pydantic models
 │   └── requirements.txt
 ├── docker/                   # Docker Compose setup
 │   └── docker-compose.yml   # MinIO, Redis, API
@@ -161,7 +164,7 @@ cd spark && sbt "runMain com.example.featurestore.App online-sync \
 
 ```bash
 # Get latest features for a user (from Redis)
-curl "http://localhost:8000/features?user_id=user1"
+curl "http://localhost:8000/features/online/user1"
 ```
 
 Response:
@@ -184,7 +187,7 @@ Response:
 
 ```bash
 # Get features at a specific point in time (from Iceberg)
-curl "http://localhost:8000/features?user_id=user1&as_of=2024-01-05T12:00:00"
+curl "http://localhost:8000/features/offline/user1?as_of=2024-01-05T12:00:00"
 ```
 
 Response:

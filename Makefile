@@ -50,8 +50,8 @@ demo: setup build ## Run full demo: setup, build, backfill, point-in-time join, 
 	@echo "6. API is running at http://localhost:8000"
 	@echo ""
 	@echo "Try these commands:"
-	@echo "  curl 'http://localhost:8000/features?user_id=user1'"
-	@echo "  curl 'http://localhost:8000/features?user_id=user1&as_of=2024-01-05T12:00:00'"
+	@echo "  curl 'http://localhost:8000/features/online/user1'"
+	@echo "  curl 'http://localhost:8000/features/offline/user1?as_of=2024-01-05T12:00:00'"
 	@echo ""
 	@echo "=== Demo Complete ==="
 
