@@ -19,13 +19,13 @@ import platform.SparkPlatformTrait
   *      Left join with events filtered by:
   *      - Same user_id
   *      - event_date <= feature day (point-in-time correctness, no data leakage)
-  *      - event_date >= feature day - 30 days (optimization: only last 30 days needed)
-  *      5. Group by (user_id, day) and aggregate:
+  *      - event_date >= feature day - 30 days (optimization: only last 30 days needed) 5. Group by
+  *        (user_id, day) and aggregate:
   *      - event_count_7d: Count events in last 7 days (inclusive)
   *      - event_count_30d: Count events in last 30 days (inclusive)
   *      - last_event_days_ago: Days since most recent event (0 if event on feature day)
-  *      - event_type_counts: Count of distinct event types in 30-day window
-  *      6. Write to Iceberg table partitioned by day
+  *      - event_type_counts: Count of distinct event types in 30-day window 6. Write to Iceberg
+  *        table partitioned by day
   *
   * Use cross join to ensure complete coverage: every user has a row for every day in the date
   * range, even if they had no events. This is critical for point-in-time joins in downstream
