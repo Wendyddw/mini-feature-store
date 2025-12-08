@@ -1,4 +1,4 @@
-.PHONY: help demo setup build test clean docker-up docker-down
+.PHONY: help demo setup build test clean clean-all docker-up docker-down
 
 help: ## Display this help message
 	@echo "Available commands:"
@@ -66,7 +66,13 @@ docker-up: ## Start Docker services
 docker-down: ## Stop Docker services
 	docker-compose -f docker/docker-compose.yml down
 
-clean: ## Clean build artifacts
+clean: ## Clean build artifacts and sample data
 	cd spark && sbt clean
 	rm -rf /tmp/events_raw /tmp/labels /tmp/training_data
+	@echo "Cleaned build artifacts and sample data"
+
+clean-all: clean ## Clean everything including Docker volumes (removes all data)
+	@echo "Stopping Docker services..."
+	@docker-compose -f docker/docker-compose.yml down -v
+	@echo "Cleaned all artifacts, data, and Docker volumes"
 
