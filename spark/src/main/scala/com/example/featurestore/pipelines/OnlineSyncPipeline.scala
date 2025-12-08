@@ -86,7 +86,11 @@ class OnlineSyncPipeline(
             .map(_.toString)
             .getOrElse("null"),
           "event_type_counts" -> featuresDaily.event_type_counts.getOrElse("null")
-        ).map { case (k, v) => s""""$k":$v""" }.mkString("{", ",", "}")
+        ).map { case (k, v) =>
+          // Quote values that are strings (not "null" which should be unquoted JSON null)
+          if (v == "null") s""""$k":null"""
+          else s""""$k":"$v""""
+        }.mkString("{", ",", "}")
 
         val key = s"features:${userId}"
         redis.set(key, featuresJson)
