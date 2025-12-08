@@ -54,37 +54,21 @@ object App {
     // For production, set SPARK_MASTER environment variable or use spark-submit
     val master = Option(System.getenv("SPARK_MASTER")).orElse(Option(System.getProperty("spark.master")))
 
-    // MinIO/S3 configuration for local development
-    val s3Config = Map(
-      "spark.hadoop.fs.s3a.endpoint" -> "http://localhost:9000",
-      "spark.hadoop.fs.s3a.access.key" -> "minioadmin",
-      "spark.hadoop.fs.s3a.secret.key" -> "minioadmin",
-      "spark.hadoop.fs.s3a.path.style.access" -> "true",
-      "spark.hadoop.fs.s3a.impl" -> "org.apache.hadoop.fs.s3a.S3AFileSystem",
-      "spark.hadoop.fs.s3a.connection.ssl.enabled" -> "false"
-    )
-
-    // Iceberg configuration - use hadoop catalog for local development (no Hive Metastore required)
-    // Use s3a:// scheme for S3A filesystem (required by Hadoop)
-    val icebergConfig = Map(
-      "spark.sql.extensions" -> "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions",
-      "spark.sql.catalog.spark_catalog" -> "org.apache.iceberg.spark.SparkSessionCatalog",
-      "spark.sql.catalog.spark_catalog.type" -> "hadoop",
-      "spark.sql.catalog.spark_catalog.warehouse" -> "s3a://warehouse/"
-    )
+    // Spark configuration for Iceberg with S3/MinIO storage
+    val sparkConfig = getSparkConfigForIceberg()
 
     val platform = if (master.isEmpty) {
       // Local development mode
       PlatformProvider.createLocal(
         appName = s"feature-store-${args(0)}",
-        config = s3Config ++ icebergConfig
+        config = sparkConfig
       )
     } else {
       // Production mode with specified master
       PlatformProvider.create(
         appName = s"feature-store-${args(0)}",
         master = master,
-        config = s3Config ++ icebergConfig
+        config = sparkConfig
       )
     }
 
@@ -130,6 +114,35 @@ object App {
       }
     finally
       platform.stop()
+  }
+
+  /** Returns Spark configuration for Iceberg with S3/MinIO storage.
+    *
+    * Combines S3A filesystem configuration (for MinIO/S3 access) with Iceberg catalog
+    * configuration. This configuration is used for both local development and production.
+    *
+    * @return Map of Spark configuration properties
+    */
+  private def getSparkConfigForIceberg(): Map[String, String] = {
+    // S3A filesystem configuration for MinIO/S3 access
+    val s3Config = Map(
+      "spark.hadoop.fs.s3a.endpoint" -> "http://localhost:9000",
+      "spark.hadoop.fs.s3a.access.key" -> "minioadmin",
+      "spark.hadoop.fs.s3a.secret.key" -> "minioadmin",
+      "spark.hadoop.fs.s3a.path.style.access" -> "true",
+      "spark.hadoop.fs.s3a.impl" -> "org.apache.hadoop.fs.s3a.S3AFileSystem",
+      "spark.hadoop.fs.s3a.connection.ssl.enabled" -> "false"
+    )
+
+    // Iceberg catalog configuration (hadoop catalog type, no Hive Metastore required)
+    val icebergConfig = Map(
+      "spark.sql.extensions" -> "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions",
+      "spark.sql.catalog.spark_catalog" -> "org.apache.iceberg.spark.SparkSessionCatalog",
+      "spark.sql.catalog.spark_catalog.type" -> "hadoop",
+      "spark.sql.catalog.spark_catalog.warehouse" -> "s3a://warehouse/"
+    )
+
+    s3Config ++ icebergConfig
   }
 
   private def parseArgs(args: Array[String]): Map[String, String] =
