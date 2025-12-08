@@ -24,15 +24,29 @@ router = APIRouter(
     tags=["offline", "development", "debugging"]
 )
 
-# Iceberg catalog for offline serving
-catalog = load_catalog(
-    name="spark_catalog",
-    **{
-        "type": "rest",
-        "uri": "http://rest:8181",
-        "warehouse": "s3://warehouse/",
-    }
-)
+# Lazy-load catalog to avoid startup failures if REST catalog is not available
+_catalog = None
+
+
+def get_catalog():
+    """Lazy-load Iceberg catalog (only when endpoint is called)."""
+    global _catalog
+    if _catalog is None:
+        try:
+            _catalog = load_catalog(
+                name="spark_catalog",
+                **{
+                    "type": "rest",
+                    "uri": "http://rest:8181",
+                    "warehouse": "s3://warehouse/",
+                }
+            )
+        except Exception as e:
+            raise HTTPException(
+                status_code=503,
+                detail=f"Iceberg REST catalog not available. This endpoint requires an Iceberg REST catalog service. Error: {str(e)}"
+            )
+    return _catalog
 
 
 @router.get("/{user_id}", response_model=FeatureResponse)
@@ -69,6 +83,7 @@ async def get_offline_features(
         )
 
     try:
+        catalog = get_catalog()
         table = catalog.load_table("feature_store.features_daily")
 
         # Query: get features where day <= as_of_date, latest per user
