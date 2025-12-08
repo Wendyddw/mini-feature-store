@@ -32,6 +32,11 @@ import platform.PlatformProvider
   */
 object App {
   def main(args: Array[String]): Unit = {
+    // Workaround for Java 17+ compatibility: configure Hadoop to avoid Subject API
+    // Subject.getSubject() was removed in Java 17+, so we configure Hadoop to use simple auth
+    System.setProperty("hadoop.security.authentication", "simple")
+    System.setProperty("java.security.auth.login.config", "")
+
     if (args.length < 1) {
       println(
         """Usage: <pipeline> [options]
@@ -45,14 +50,43 @@ object App {
       System.exit(1)
     }
 
-    val platform = PlatformProvider.create(
-      appName = s"feature-store-${args(0)}",
-      config = Map(
-        "spark.sql.extensions" -> "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions",
-        "spark.sql.catalog.spark_catalog"      -> "org.apache.iceberg.spark.SparkSessionCatalog",
-        "spark.sql.catalog.spark_catalog.type" -> "hive"
-      )
+    // Use local mode for local development (sbt runMain), or when SPARK_MASTER is not set
+    // For production, set SPARK_MASTER environment variable or use spark-submit
+    val master = Option(System.getenv("SPARK_MASTER")).orElse(Option(System.getProperty("spark.master")))
+
+    // MinIO/S3 configuration for local development
+    val s3Config = Map(
+      "spark.hadoop.fs.s3a.endpoint" -> "http://localhost:9000",
+      "spark.hadoop.fs.s3a.access.key" -> "minioadmin",
+      "spark.hadoop.fs.s3a.secret.key" -> "minioadmin",
+      "spark.hadoop.fs.s3a.path.style.access" -> "true",
+      "spark.hadoop.fs.s3a.impl" -> "org.apache.hadoop.fs.s3a.S3AFileSystem",
+      "spark.hadoop.fs.s3a.connection.ssl.enabled" -> "false"
     )
+
+    // Iceberg configuration - use hadoop catalog for local development (no Hive Metastore required)
+    // Use s3a:// scheme for S3A filesystem (required by Hadoop)
+    val icebergConfig = Map(
+      "spark.sql.extensions" -> "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions",
+      "spark.sql.catalog.spark_catalog" -> "org.apache.iceberg.spark.SparkSessionCatalog",
+      "spark.sql.catalog.spark_catalog.type" -> "hadoop",
+      "spark.sql.catalog.spark_catalog.warehouse" -> "s3a://warehouse/"
+    )
+
+    val platform = if (master.isEmpty) {
+      // Local development mode
+      PlatformProvider.createLocal(
+        appName = s"feature-store-${args(0)}",
+        config = s3Config ++ icebergConfig
+      )
+    } else {
+      // Production mode with specified master
+      PlatformProvider.create(
+        appName = s"feature-store-${args(0)}",
+        master = master,
+        config = s3Config ++ icebergConfig
+      )
+    }
 
     try
       args(0) match {
