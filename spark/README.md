@@ -15,40 +15,32 @@ Spark and Scala framework for the mini feature store project.
 ```
 spark/
 ├── build.sbt                    # Build configuration
-├── project/
-│   ├── plugins.sbt             # SBT plugins (assembly, scalafmt, scalafix)
-│   └── build.properties        # SBT version
+├── project/                     # SBT project configuration
 ├── src/
 │   ├── main/
 │   │   ├── scala/
-│   │   │   └── platform/   # Core Spark utilities
-│   │   │       ├── SparkPlatformTrait.scala   # Trait for platform abstraction
-│   │   │       ├── SparkPlatform.scala        # Production Spark session manager
-│   │   │       ├── PlatformProvider.scala    # Factory for platform selection
-│   │   │       ├── Fetchers.scala             # Trait for reading operations
-│   │   │       ├── ProdFetcher.scala          # Production fetcher implementation
-│   │   │       ├── Writers.scala              # Trait for writing operations
-│   │   │       └── ProdWriter.scala           # Production writer implementation
-│   │   └── resources/                         # Configurations (log4j2.xml)
+│   │   │   ├── com/example/featurestore/  # Feature store pipelines and types
+│   │   │   │   ├── App.scala             # Main application entry point
+│   │   │   │   ├── domain/              # Data schemas
+│   │   │   │   ├── pipelines/           # Backfill, Point-in-Time Join, Online Sync
+│   │   │   │   └── types/               # Pipeline configs and data types
+│   │   │   └── platform/                # Core Spark utilities (Fetchers, Writers, Platform)
+│   │   └── resources/                   # log4j2.xml, log4j.properties
 │   └── test/
-│       ├── scala/
-│       │   └── com/example/featurestore/suit/
-│       │       ├── SparkTestBase.scala        # Base trait for parallel test execution
-│       │       ├── TestWriter.scala           # In-memory writer for testing
-│       │       └── TestFetcher.scala          # In-memory fetcher for testing
-│       └── resources/                         # Test resources
-├── .scalafmt.conf              # Scalafmt configuration
-├── .scalafix.conf              # Scalafix configuration
-├── .java-version               # Java version specification (17)
-├── .gitignore                  # Git ignore patterns
-└── Makefile                    # Convenient commands
+│       ├── scala/                      # Pipeline and unit tests
+│       └── resources/                   # Test logging configuration
+├── .scalafmt.conf              # Code formatting
+├── .scalafix.conf              # Linting rules
+└── Makefile                    # Build and test commands
 
 ```
 
 ## Prerequisites
 
-* Java 17+ (required for Spark 3.5.0 compatibility)
-* SBT 1.9.6+
+* **Java 17** (required for Spark 3.5.0 compatibility; Java 25+ has compatibility issues)
+* **SBT 1.9.6+**
+* **Python 3** with `pandas` and `pyarrow` (for sample data generation)
+* **Docker** and **Docker Compose** (for MinIO and Redis services)
 
 ## Available Commands
 
@@ -65,6 +57,34 @@ make clean        # Clean build artifacts
 ```
 
 ## Usage
+
+### Running Pipelines
+
+The main application entry point is `com.example.featurestore.App`, which supports three pipeline modes:
+
+```bash
+# Backfill: events_raw → features_daily
+sbt "runMain com.example.featurestore.App backfill \
+  --events-raw-path file:///tmp/events_raw \
+  --output-table feature_store.features_daily \
+  --start-date 2025-12-01 \
+  --end-date 2025-12-07"
+
+# Point-in-time join: labels + features_daily → training_data
+sbt "runMain com.example.featurestore.App point-in-time-join \
+  --labels-path file:///tmp/labels \
+  --features-table feature_store.features_daily \
+  --output-path file:///tmp/training_data"
+
+# Online sync: features_daily → Redis
+sbt "runMain com.example.featurestore.App online-sync \
+  --features-table feature_store.features_daily \
+  --redis-host localhost \
+  --redis-port 6379 \
+  --hours-back 168"
+```
+
+**Note**: For local development, the app automatically uses `local[*]` mode. For production, set the `SPARK_MASTER` environment variable or use `spark-submit`.
 
 ### Creating a Spark Platform
 
@@ -171,11 +191,38 @@ class MyTest extends AnyFunSuite with SparkTestBase with Matchers {
 5. **Testing**: All logic covered by E2E tests following Arrange-Action-Assert pattern
 6. **In-Memory Testing**: `TestFetcher` and `TestWriter` provide fast, isolated tests without I/O
 
+## Configuration
+
+### Iceberg and S3/MinIO Setup
+
+The application is configured for local development with MinIO (S3-compatible storage) and Iceberg:
+
+- **S3A Configuration**: Connects to MinIO at `http://localhost:9000` with credentials `minioadmin/minioadmin`
+- **Iceberg Catalog**: Uses Hadoop catalog type (no Hive Metastore required) with warehouse at `s3a://warehouse/`
+- **Configuration**: Managed in `App.scala` via `getSparkConfigForIceberg()` method
+
+For production, update the S3 endpoint and credentials in `App.scala` or use environment variables.
+
+### Logging
+
+- **log4j2.xml**: Main logging configuration for Spark, Hadoop, and Parquet
+- **log4j.properties**: Log4j 1.x configuration for AWS SDK compatibility (suppresses warnings)
+
 ## Building for Deployment
 
 ```bash
 make build
 ```
 
-The assembled JAR is created in `target/scala-2.13/` and can be submitted to a Spark cluster using `spark-submit`.
+The assembled JAR is created in `target/scala-2.13/mini-feature-store-spark.jar` and can be submitted to a Spark cluster using `spark-submit`:
+
+```bash
+spark-submit --class com.example.featurestore.App \
+  mini-feature-store-spark.jar \
+  backfill \
+  --events-raw-path s3://bucket/events_raw \
+  --output-table feature_store.features_daily \
+  --start-date 2025-01-01 \
+  --end-date 2025-12-31
+```
 
