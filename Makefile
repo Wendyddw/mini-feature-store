@@ -26,14 +26,16 @@ demo: setup build ## Run full demo: setup, build, backfill, point-in-time join, 
 	@sleep 10
 	@echo ""
 	@echo "2. Generating sample data..."
-	@python scripts/generate_sample_data.py
+	@python3 scripts/generate_sample_data.py
 	@echo ""
 	@echo "3. Running backfill pipeline..."
-	@cd spark && sbt "runMain com.example.featurestore.App backfill \
+	@START_DATE=$$(python3 -c "from datetime import datetime, timedelta; print((datetime.now() - timedelta(days=6)).strftime('%Y-%m-%d'))"); \
+	END_DATE=$$(python3 -c "from datetime import datetime; print(datetime.now().strftime('%Y-%m-%d'))"); \
+	cd spark && sbt "runMain com.example.featurestore.App backfill \
 		--events-raw-path file:///tmp/events_raw \
 		--output-table feature_store.features_daily \
-		--start-date 2024-01-01 \
-		--end-date 2024-01-07"
+		--start-date $$START_DATE \
+		--end-date $$END_DATE"
 	@echo ""
 	@echo "4. Running point-in-time join..."
 	@cd spark && sbt "runMain com.example.featurestore.App point-in-time-join \
@@ -45,7 +47,8 @@ demo: setup build ## Run full demo: setup, build, backfill, point-in-time join, 
 	@cd spark && sbt "runMain com.example.featurestore.App online-sync \
 		--features-table feature_store.features_daily \
 		--redis-host localhost \
-		--redis-port 6379"
+		--redis-port 6379 \
+		--hours-back 168"
 	@echo ""
 	@echo "6. API is running at http://localhost:8000"
 	@echo ""
